@@ -38,12 +38,10 @@
 
     /* Monitoring */
     .camera-box { background: black; width: 100%; aspect-ratio: 16/9; max-height: 350px; display: flex; align-items: center; justify-content: center; color: #555; border-radius: 8px; }
-    
     .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; }
     .pzem-val { font-size: 18px; font-weight: bold; }
     .pzem-label { font-size: 10px; color: #888; }
     
-    /* LOG TABLE */
     .log-list { font-size: 11px; height: 150px; overflow-y: auto; border-top: 1px solid #eee; }
     .log-table { width: 100%; border-collapse: collapse; }
     .log-table th { text-align: left; background: #f9f9f9; padding: 5px; position: sticky; top: 0; }
@@ -72,6 +70,9 @@
       <h2>SYSTEM LOGIN</h2>
       <input type="text" id="mqtt-user" class="input-field" placeholder="HiveMQ Username">
       <input type="password" id="mqtt-pass" class="input-field" placeholder="HiveMQ Password">
+      <hr style="border: 0; border-top: 1px solid #444; margin: 15px 0;">
+      <input type="text" id="device-name" class="input-field" placeholder="Device Name (e.g. Red's Phone)">
+      
       <div style="font-size:12px; text-align:left; margin-top:5px;">
         <input type="checkbox" id="remember-me"> Remember Me
       </div>
@@ -82,7 +83,10 @@
   <div id="dashboard" style="display:none;">
     <header class="header">
       <strong>SMART MEZZA CONTROL</strong>
-      <button onclick="doLogout()" style="background:none; border:1px solid #666; color:#ccc; padding:5px 10px; cursor:pointer;">EXIT</button>
+      <div style="font-size:11px;">
+        <span id="display-name" style="color:#aaa; margin-right:10px;">Unknown Device</span>
+        <button onclick="doLogout()" style="background:none; border:1px solid #666; color:#ccc; padding:5px 10px; cursor:pointer;">EXIT</button>
+      </div>
     </header>
 
     <div class="container">
@@ -122,7 +126,7 @@
           <div class="log-list">
             <table class="log-table">
               <thead>
-                <tr><th>Time</th><th>Action</th><th>Target</th></tr>
+                <tr><th>Time</th><th>By</th><th>Action</th><th>Target</th></tr>
               </thead>
               <tbody id="log-body"></tbody>
             </table>
@@ -170,19 +174,25 @@ const CLIENT_ID = "web_" + Math.random().toString(16).substr(2, 8);
 const LABELS = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
 let client = null;
+let myDeviceName = "Unknown";
 let deviceState = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 }; 
 let pendingId = null; 
+let pendingState = null;
 let lockTimer = 0; // Anti-Flicker Timestamp
 
 // ================= INITIALIZATION =================
 window.onload = () => {
   renderRelays();
-  renderLogs(); // Load history on start
+  renderLogs();
+  
   const u = localStorage.getItem("mq_u");
   const p = localStorage.getItem("mq_p");
+  const d = localStorage.getItem("mq_d"); // Load saved device name
+  
   if(u && p) { 
     document.getElementById("mqtt-user").value = u;
     document.getElementById("mqtt-pass").value = p;
+    if(d) document.getElementById("device-name").value = d;
     connectSystem();
   }
 };
@@ -204,23 +214,15 @@ function renderRelays() {
 function addLog(action, target) {
   const newLog = {
     time: new Date().toLocaleTimeString(),
+    by: myDeviceName,
     action: action,
     target: target
   };
 
-  // 1. Get Log History
   let history = JSON.parse(localStorage.getItem("sys_logs") || "[]");
-  
-  // 2. Add New Log to Top
   history.unshift(newLog);
-  
-  // 3. Trim to 100 items
   if (history.length > 100) history = history.slice(0, 100);
-  
-  // 4. Save
   localStorage.setItem("sys_logs", JSON.stringify(history));
-  
-  // 5. Render
   renderLogs();
 }
 
@@ -229,13 +231,14 @@ function renderLogs() {
   const tbody = document.getElementById("log-body");
   
   if(history.length === 0) {
-    tbody.innerHTML = "<tr><td colspan='3' style='text-align:center; color:#999'>No activity history</td></tr>";
+    tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#999'>No activity history</td></tr>";
     return;
   }
 
   tbody.innerHTML = history.map(log => `
     <tr>
       <td>${log.time}</td>
+      <td style="font-weight:bold; color:#555;">${log.by || 'System'}</td>
       <td>${log.action}</td>
       <td>${log.target}</td>
     </tr>
@@ -252,33 +255,35 @@ function clearLog() {
 function connectSystem() {
   const u = document.getElementById("mqtt-user").value;
   const p = document.getElementById("mqtt-pass").value;
+  const d = document.getElementById("device-name").value || "Unknown Device";
   
   if(!u || !p) return alert("Credentials Required");
+
+  myDeviceName = d;
+  document.getElementById("display-name").innerText = myDeviceName;
 
   if(document.getElementById("remember-me").checked) {
     localStorage.setItem("mq_u", u);
     localStorage.setItem("mq_p", p);
+    localStorage.setItem("mq_d", d);
   }
 
   client = new Paho.MQTT.Client("wss://" + MQTT_HOST + ":" + MQTT_PORT + "/mqtt", CLIENT_ID);
-  
   client.onMessageArrived = onMessage;
-  
   client.connect({
     useSSL: true, userName: u, password: p,
     onSuccess: () => {
       document.getElementById("login-overlay").style.display = "none";
       document.getElementById("dashboard").style.display = "block";
       client.subscribe("/printer_01/status");
-      addLog("System", "Connected");
+      // Don't log "System Connected" to avoid spamming the log on reload
     },
     onFailure: (e) => alert("Connection Failed: " + e.errorMessage)
   });
 }
 
 function onMessage(m) {
-  // If user just clicked a button, ignore updates for 6 seconds (Prevents Flicker)
-  if(Date.now() < lockTimer) return;
+  if(Date.now() < lockTimer) return; // Anti-Flicker
 
   try {
     const d = JSON.parse(m.payloadString);
@@ -293,7 +298,7 @@ function onMessage(m) {
 // ================= LOGIC & CONTROL =================
 function updateState(id, state) {
   state = Number(state);
-  deviceState[id] = state; // Update Internal Memory
+  deviceState[id] = state; 
 
   const led = document.getElementById(`led-${id}`);
   const btn = document.getElementById(`btn-${id}`);
@@ -311,70 +316,65 @@ function updateState(id, state) {
   }
 }
 
+function getDeviceName(id) {
+    if (id === 9) return "Main System Bus";
+    if (id >= 1 && id <= 8) return LABELS[id - 1];
+    return "Unknown Device";
+}
+
 function handleClick(id) {
-  const currentState = deviceState[id]; // Use Internal Memory
-  
-  // IF ON -> ASK TO TURN OFF
-  if(currentState === 1) {
-    pendingId = id;
-    const name = id === 9 ? "Master Bus" : LABELS[id-1];
-    
-    // Setup Modal
-    const input = document.getElementById("confirm-input");
-    const msg = document.getElementById("confirm-msg");
-    
-    if(id === 9) {
-      msg.innerHTML = `Type <b>CONFIRM</b> to kill <b>${name}</b>`;
-      input.style.display = "block";
-      input.value = "";
-    } else {
-      msg.innerHTML = `Turn off <b>${name}</b>?`;
-      input.style.display = "none";
-    }
-    
-    openModal("confirm-modal");
-  } 
-  // IF OFF -> TURN ON IMMEDIATELY
-  else {
+  const currentState = deviceState[id]; 
+  const newState = currentState === 1 ? 0 : 1;
+  const name = getDeviceName(id);
+
+  pendingId = id;
+  pendingState = newState;
+
+  if(newState === 1) {
     sendCommand(id, 1);
+    return;
   }
+
+  // Confirm OFF
+  const msg = document.getElementById("confirm-msg");
+  const input = document.getElementById("confirm-input");
+
+  if(id === 9) {
+    msg.innerHTML = `Type <b>CONFIRM</b> to kill <b>${name}</b>`;
+    input.style.display = "block";
+    input.value = "";
+  } else {
+    msg.innerHTML = `Turn off <b>${name}</b>?`;
+    input.style.display = "none";
+  }
+  
+  openModal("confirm-modal");
 }
 
 function executeOff() {
-  // If Master Bus, Check Password
   if(pendingId === 9) {
     const txt = document.getElementById("confirm-input").value;
     if(txt !== "CONFIRM") return alert("Please type CONFIRM");
   }
   
-  sendCommand(pendingId, 0);
+  sendCommand(pendingId, pendingState);
   closeModal("confirm-modal");
 }
 
 function sendCommand(id, state) {
-  // 1. Lock incoming updates for 6s so UI doesn't flicker
-  lockTimer = Date.now() + 6000;
+  lockTimer = Date.now() + 6000; // 6s Anti-Flicker
+  updateState(id, state); // Optimistic Update
+  addLog(state ? "ON" : "OFF", getDeviceName(id));
   
-  // 2. Update UI Immediately (Optimistic)
-  updateState(id, state);
-  
-  // 3. Send MQTT
-  const payload = JSON.stringify({ relay: id, state: state });
+  const payload = JSON.stringify({ relay: id, state: state, by: myDeviceName });
   const message = new Paho.MQTT.Message(payload);
   message.destinationName = "/printer_01/commands";
   client.send(message);
-  
-  // 4. Log it
-  const name = id === 9 ? "Master Bus" : LABELS[id-1];
-  addLog(state ? "ON" : "OFF", name);
 }
 
 // ================= HELPERS =================
 function openModal(id) { document.getElementById(id).style.display = "flex"; }
-function closeModal(id) { 
-  document.getElementById(id).style.display = "none"; 
-  pendingId = null; 
-}
+function closeModal(id) { document.getElementById(id).style.display = "none"; pendingId = null; }
 
 function doLogout() {
   localStorage.removeItem("mq_u");
