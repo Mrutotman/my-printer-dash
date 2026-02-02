@@ -21,6 +21,7 @@
 
     header { background: #333; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
     
+    /* Main Layout */
     .main-container { display: flex; flex: 1; overflow-y: auto; padding: 15px; gap: 15px; margin-bottom: 60px; flex-wrap: wrap; }
     .sidebar { width: 30%; min-width: 300px; display: flex; flex-direction: column; gap: 15px; }
     .monitoring { flex: 1; min-width: 350px; display: flex; flex-direction: column; gap: 15px; }
@@ -30,7 +31,7 @@
     
     .disabled-panel { opacity: 0.4; pointer-events: none; filter: grayscale(1); transition: 0.4s; }
 
-    /* PZEM & Grid Styles */
+    /* Grids & Cards */
     .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
     .pzem-box { background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #eee; }
     .pzem-val { font-size: 20px; font-weight: bold; color: #333; }
@@ -45,7 +46,7 @@
     .btn-on-style { background-color: #e8f5e9; color: var(--primary-green); border: 1px solid var(--primary-green); }
     .btn-off-style { background-color: #ffebee; color: var(--error-red); border: 1px solid var(--error-red); }
 
-    /* Logs & Admin */
+    /* Admin & Logs */
     .log-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 5px; }
     .log-table th { text-align: left; padding: 8px; border-bottom: 2px solid #eee; color: #999; }
     .log-table td { padding: 8px; border-bottom: 1px solid #f9f9f9; }
@@ -55,7 +56,7 @@
 
     .camera-container { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
     
-    /* Help Button - Fixed Z-Index Issue */
+    /* Help Button Fix */
     #help-btn { position: fixed; bottom: 80px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 20px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 15000; transition: 0.3s; }
     #help-btn:active { transform: scale(0.9); }
 
@@ -68,11 +69,12 @@
     footer { position: fixed; bottom: 0; width: 100%; background: #333; color: white; height: 60px; display: flex; align-items: center; justify-content: space-around; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.2); }
     .footer-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
     
+    /* Mobile Overrides */
     @media (max-width: 768px) {
       .sidebar, .monitoring { width: 100%; }
       .pzem-grid { grid-template-columns: repeat(2, 1fr); }
       footer { flex-wrap: wrap; height: auto; padding: 10px; }
-      #help-btn { bottom: 90px; left: 15px; } /* Adjust for mobile footer */
+      #help-btn { bottom: 90px; left: 15px; } 
     }
   </style>
 </head>
@@ -154,7 +156,7 @@
 
     <button id="help-btn" onclick="toggleModal('tutorial-modal')">?</button>
 
-    <div id="tutorial-modal" class="modal">
+    <div id="tutorial-modal" class="modal" style="display:none;">
         <div class="modal-content">
           <h3 style="text-align:center; color:#333;">System Tutorial</h3>
           <p style="font-size: 13px;"><b>1. Master Power:</b> Must be ON to enable the Control Panel.</p>
@@ -164,7 +166,7 @@
         </div>
     </div>
 
-    <div id="warn-modal" class="modal">
+    <div id="warn-modal" class="modal" style="display:none;">
       <div class="modal-content">
         <h3 class="warning-title">⚠️ CONFIRM ACTION</h3>
         <p id="warn-text" style="text-align:center; font-size:14px; margin-bottom:15px;"></p>
@@ -181,7 +183,6 @@
     <footer>
       <div class="footer-item">🕒 <span id="rtc-clock">--:--:--</span></div>
       <div class="footer-item">🌡️ <span id="temp-display">--</span>°C</div>
-      <div class="footer-item">💧 <span id="humi-display">--</span>%</div>
       <div class="footer-item">📅 <span id="rtc-date">---</span></div>
     </footer>
   </div>
@@ -213,7 +214,7 @@ function handleAuth() {
     if(u.toLowerCase() === "admin") return alert("Reserved name!");
     if(db.some(x => x.name === u)) return alert("User exists!");
     
-    db.push({name: u, pass: p, admin: false}); // New users are strictly standard
+    db.push({name: u, pass: p, admin: false}); 
     localStorage.setItem('user_db', JSON.stringify(db));
     alert("Account created! Please log in.");
     toggleAuthMode();
@@ -250,30 +251,30 @@ function initMQTT(u, p) {
     if(d.relays) d.relays.forEach((s, i) => updateUI(i+1, s));
     if(d.hasOwnProperty('master')) updateUI(9, d.master);
     if(d.temp) document.getElementById('temp-display').innerText = d.temp.toFixed(1);
-    if(d.humi) document.getElementById('humi-display').innerText = d.humi.toFixed(1);
     ['v', 'a', 'w', 'wh'].forEach(k => { if(d[k]) document.getElementById(k+'-val').innerText = d[k]; });
   };
   client.connect({ useSSL: true, userName: u, password: p, onSuccess: () => {
     document.getElementById('auth-overlay').style.display='none';
     document.getElementById('main-content').style.display='block';
     client.subscribe("/printer_01/status");
-  }, onFailure: (e) => { alert("MQTT Connect Failed: " + e.errorMessage); }});
+  }, onFailure: (e) => { alert("Connection Failed: " + e.errorMessage); }});
 }
 
 function updateUI(id, s) {
   const led = document.getElementById(`led${id}`), btn = document.getElementById(`relay${id}_btn`);
   if(!led || !btn) return;
   if (s == 1) {
-    led.className = "led led-on"; btn.innerText = "TURN OFF"; btn.className = "btn btn-off-style";
+    led.className = "led led-on"; btn.innerText = "OFF"; btn.className = "btn btn-off-style";
     if (id === 9) document.getElementById('control-panel').classList.remove('disabled-panel');
   } else {
-    led.className = "led"; btn.innerText = "TURN ON"; btn.className = "btn btn-on-style";
+    led.className = "led"; btn.innerText = "ON"; btn.className = "btn btn-on-style";
     if (id === 9) document.getElementById('control-panel').classList.add('disabled-panel');
   }
 }
 
 function handleAction(id) {
-  // Check if LED is ON to trigger warning
+  if(!client || !client.isConnected()) return alert("System Offline");
+  
   if (document.getElementById(`led${id}`).classList.contains('led-on')) {
     pendingId = id;
     const name = id === 9 ? 'Main System Bus' : labels[id-1];
@@ -288,7 +289,6 @@ function handleAction(id) {
     }
     toggleModal('warn-modal');
   } else { 
-    // Turn ON immediately
     sendCmd(id, 1); 
   }
 }
@@ -297,7 +297,7 @@ function execPowerOff() {
   if (pendingId === 9 && document.getElementById('confirm-in').value !== "CONFIRM") return alert("Type CONFIRM to proceed.");
   sendCmd(pendingId, 0); 
   toggleModal('warn-modal');
-  pendingId = null; // Reset pending ID
+  pendingId = null;
 }
 
 function sendCmd(id, s) {
@@ -305,12 +305,11 @@ function sendCmd(id, s) {
   const name = id === 9 ? 'Main Bus' : labels[id-1];
   const action = s ? 'ON' : 'OFF';
   
-  // Update Log Table
+  // Update Log
   const row = `<tr><td>${time}</td><td>${currentUser.name}</td><td>${action}</td><td>${name}</td></tr>`;
   document.getElementById('log-body').insertAdjacentHTML('afterbegin', row);
   
-  // Send MQTT
-  if(client) client.send(new Paho.MQTT.Message(JSON.stringify({relay: id, state: s, by: currentUser.name})));
+  client.send(new Paho.MQTT.Message(JSON.stringify({relay: id, state: s, by: currentUser.name})));
 }
 
 // --- ADMIN & UTILS ---
@@ -343,7 +342,8 @@ function toggleAuthMode() {
 
 function toggleModal(id) { 
     const m = document.getElementById(id); 
-    m.style.display = (m.style.display === 'flex') ? 'none' : 'flex'; 
+    if(m.style.display === 'flex') m.style.display = 'none';
+    else m.style.display = 'flex';
 }
 
 function logout() { localStorage.removeItem('last_u'); location.reload(); }
@@ -359,14 +359,9 @@ window.onload = () => {
   if(last) { currentUser = JSON.parse(last); startSystem(localStorage.getItem('m_u'), localStorage.getItem('m_p')); }
 };
 
-// Generate Controls
 const cont = document.getElementById('relay-container');
 labels.forEach((l, i) => {
-  cont.innerHTML += `
-    <div class="relay-card">
-      <div class="relay-header"><div id="led${i+1}" class="led"></div><small><b>${l}</b></small></div>
-      <button id="relay${i+1}_btn" class="btn btn-on-style" onclick="handleAction(${i+1})">TURN ON</button>
-    </div>`;
+  cont.innerHTML += `<div class="relay-card"><div class="relay-header"><div id="led${i+1}" class="led"></div><small><b>${l}</b></small></div><button id="relay${i+1}_btn" class="btn btn-on-style" onclick="handleAction(${i+1})">ON</button></div>`;
 });
 </script>
 </body>
