@@ -20,54 +20,53 @@
     .auth-input { padding: 12px; border-radius: 8px; border: 1px solid #444; width: 100%; margin-bottom: 12px; box-sizing: border-box; background: #1a1a1a; color: white; }
     .auth-btn { background: var(--primary-green); color: white; padding: 14px; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
 
-    header { background: #333; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
+    header { background: #333; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
     #cloud-bar { font-size: 11px; color: #00ff00; letter-spacing: 1px; }
     
-    .main-container { display: flex; flex: 1; overflow: hidden; padding: 20px; gap: 20px; margin-bottom: 60px; }
-    .sidebar { width: 30%; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
-    .monitoring { width: 70%; display: flex; flex-direction: column; gap: 20px; }
+    .main-container { display: flex; flex: 1; overflow: hidden; padding: 15px; gap: 15px; margin-bottom: 60px; }
     
-    .section { background: var(--card-bg); border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-    h3 { margin-top: 0; font-size: 14px; color: #666; text-transform: uppercase; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+    /* Left Sidebar: Controls */
+    .sidebar { width: 30%; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
     
-    /* PZEM Interface Restored */
-    .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; text-align: center; }
+    /* Right Content: Camera & Energy */
+    .monitoring { width: 70%; display: flex; flex-direction: column; gap: 15px; }
+    
+    .section { background: var(--card-bg); border-radius: 12px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
+    h3 { margin-top: 0; font-size: 13px; color: #666; text-transform: uppercase; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 12px; }
+    
+    /* PZEM Interface - Compact and Visible */
+    .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
     .pzem-box { background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #eee; }
-    .pzem-val { font-size: 22px; font-weight: bold; color: #333; }
-    .pzem-label { font-size: 10px; color: #999; margin-top: 5px; }
+    .pzem-val { font-size: 20px; font-weight: bold; color: #333; }
+    .pzem-label { font-size: 9px; color: #999; margin-top: 4px; font-weight: bold; }
 
     /* Control Panel */
-    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-    .relay-header { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 10px; }
-    .led { width: 10px; height: 10px; border-radius: 50%; background: var(--led-off); transition: background 0.4s ease, box-shadow 0.4s ease; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .relay-header { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px; }
+    .led { width: 9px; height: 9px; border-radius: 50%; background: var(--led-off); transition: 0.4s; }
     .led-on { background: var(--primary-green); box-shadow: 0 0 8px var(--primary-green); }
-    .relay-card { border: 1px solid #f0f0f0; padding: 15px; border-radius: 10px; background: #fafafa; text-align: center; }
+    .relay-card { border: 1px solid #f0f0f0; padding: 12px; border-radius: 10px; background: #fafafa; text-align: center; }
     
     /* Smooth Buttons */
-    .btn { font-size: 11px; padding: 12px; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; text-transform: uppercase; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); outline: none; }
+    .btn { font-size: 10px; padding: 10px; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; text-transform: uppercase; transition: all 0.3s; outline: none; }
     .btn:active { transform: scale(0.96); }
     .btn-on-style { background-color: #e8f5e9; color: var(--primary-green); border: 1px solid var(--primary-green); }
     .btn-off-style { background-color: #ffebee; color: var(--error-red); border: 1px solid var(--error-red); }
 
-    /* Camera Interface Polished */
-    .camera-container { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative; }
-    .placeholder { color: #555; font-style: italic; z-index: 1; }
+    /* Optimized Camera Stream Size */
+    .camera-container { width: 100%; flex: 1; min-height: 200px; max-height: 380px; background: #000; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative; }
+    .placeholder { color: #555; font-style: italic; font-size: 13px; }
 
-    /* Help Button styling */
-    #help-btn { position: fixed; bottom: 80px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 20px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 1000; transition: 0.3s; }
-    #help-btn:hover { background: #444; transform: scale(1.1); }
+    /* Help Button */
+    #help-btn { position: fixed; bottom: 80px; left: 20px; width: 42px; height: 42px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 18px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 1000; transition: 0.3s; }
     
     .modal { display: none; position: fixed; z-index: 10001; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
-    .modal-content { background: white; padding: 30px; border-radius: 16px; max-width: 450px; text-align: left; }
+    .modal-content { background: white; padding: 25px; border-radius: 16px; max-width: 400px; text-align: left; }
 
     /* Footer Telemetry & RTC */
-    footer {
-      position: fixed; bottom: 0; width: 100%; background: #333; color: white;
-      height: 60px; display: flex; align-items: center; justify-content: space-around;
-      z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
-    }
-    .footer-item { display: flex; align-items: center; gap: 10px; font-size: 16px; }
-    .footer-divider { width: 1px; height: 30px; background: #555; }
+    footer { position: fixed; bottom: 0; width: 100%; background: #333; color: white; height: 60px; display: flex; align-items: center; justify-content: space-around; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.2); flex-shrink: 0; }
+    .footer-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+    .footer-divider { width: 1px; height: 25px; background: #555; }
     .footer-val { font-weight: bold; color: #00ff00; }
   </style>
 </head>
@@ -89,7 +88,7 @@
         <h2 style="margin:0; font-size: 18px;">SMART MEZZA 3D PRINTER CONTROL</h2>
         <div id="cloud-bar">CONNECTED TO CLOUD</div>
       </div>
-      <button style="background:none; border:1px solid #666; color:#ccc; cursor:pointer; padding: 5px 10px; border-radius: 4px;" onclick="localStorage.clear(); location.reload();">LOGOUT</button>
+      <button style="background:none; border:1px solid #666; color:#ccc; cursor:pointer; padding: 5px 10px; border-radius: 4px; font-size: 11px;" onclick="localStorage.clear(); location.reload();">LOGOUT</button>
     </header>
 
     <div class="main-container">
@@ -98,18 +97,18 @@
           <h3>MASTER POWER</h3>
           <div class="relay-header">
             <div id="led9" class="led"></div>
-            <span style="font-weight:bold">Main System Bus</span>
+            <span style="font-weight:bold; font-size: 13px;">Main System Bus</span>
           </div>
           <button id="relay9_btn" class="btn btn-on-style" onclick="handleRelayAction(9)">TURN ON</button>
         </div>
-        <div class="section">
+        <div class="section" style="flex: 1;">
           <h3>CONTROL PANEL</h3>
           <div class="grid" id="relay-container"></div>
         </div>
       </div>
 
       <div class="monitoring">
-        <div class="section" style="flex: 1; display: flex; flex-direction: column;">
+        <div class="section" style="flex: 1;">
           <h3>CAMERA STREAM</h3>
           <div class="camera-container">
             <div class="placeholder">Awaiting RTSP Source...</div>
@@ -133,9 +132,9 @@
     <div id="tutorial-modal" class="modal">
         <div class="modal-content">
           <h3 style="text-align:center; color:#333;">System Tutorial</h3>
-          <p><b>1. Master Power:</b> Controls the main system bus. Must be ON to power sub-units.</p>
-          <p><b>2. Control Panel:</b> Toggle individual units. Glowing LED indicates device is active.</p>
-          <p><b>3. Telemetry & Energy:</b> Monitor consumption and environment in real-time at the bottom.</p>
+          <p style="font-size: 13px;"><b>1. Master Power:</b> Logic bus control. Must be ON to power sub-units.</p>
+          <p style="font-size: 13px;"><b>2. Control Panel:</b> Individual unit toggles with LED status.</p>
+          <p style="font-size: 13px;"><b>3. Monitoring:</b> Live energy stats and environment data (bottom bar).</p>
           <button class="btn btn-on-style" onclick="toggleModal('tutorial-modal')" style="margin-top:10px;">GOT IT</button>
         </div>
     </div>
@@ -189,6 +188,7 @@ function initMQTT(u, p) {
     if(d.w) document.getElementById('w-val').innerText = Math.round(d.w);
     if(d.wh) document.getElementById('wh-val').innerText = d.wh.toFixed(2);
   };
+  
   client.connect({ useSSL: true, userName: u, password: p, onSuccess: () => {
     document.getElementById('auth-overlay').style.display='none';
     document.getElementById('main-content').style.display='block';
@@ -202,7 +202,7 @@ labels.forEach((l, i) => {
     <div class="relay-card">
       <div class="relay-header">
         <div id="led${i+1}" class="led"></div>
-        <small style="font-weight:bold">${l}</small>
+        <small style="font-weight:bold; font-size: 11px;">${l}</small>
       </div>
       <button id="relay${i+1}_btn" class="btn btn-on-style" onclick="handleRelayAction(${i+1})">TURN ON</button>
     </div>`;
@@ -220,6 +220,7 @@ function updateUI(id, state) {
   const led = document.getElementById(`led${id}`);
   const btn = document.getElementById(`relay${id}_btn`);
   if(!led || !btn) return;
+
   if (state == 1) {
     led.className = "led led-on";
     btn.innerText = "TURN OFF";
