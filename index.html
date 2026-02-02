@@ -13,7 +13,7 @@
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: #f0f2f5; display: flex; flex-direction: column; height: 100vh; color: #333; overflow-x: hidden; }
     
     /* Auth Overlay */
-    #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--dark-bg); display: flex; align-items: center; justify-content: center; z-index: 10000; }
+    #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--dark-bg); display: flex; align-items: center; justify-content: center; z-index: 20000; }
     .auth-box { background: #2d2d2d; padding: 30px; border-radius: 16px; text-align: center; width: 320px; color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
     .auth-input { padding: 12px; border-radius: 8px; border: 1px solid #444; width: 100%; margin-bottom: 12px; box-sizing: border-box; background: #1a1a1a; color: white; }
     .auth-btn { background: var(--primary-green); color: white; padding: 14px; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
@@ -30,6 +30,7 @@
     
     .disabled-panel { opacity: 0.4; pointer-events: none; filter: grayscale(1); transition: 0.4s; }
 
+    /* PZEM & Grid Styles */
     .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
     .pzem-box { background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #eee; }
     .pzem-val { font-size: 20px; font-weight: bold; color: #333; }
@@ -44,21 +45,34 @@
     .btn-on-style { background-color: #e8f5e9; color: var(--primary-green); border: 1px solid var(--primary-green); }
     .btn-off-style { background-color: #ffebee; color: var(--error-red); border: 1px solid var(--error-red); }
 
+    /* Logs & Admin */
     .log-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 5px; }
     .log-table th { text-align: left; padding: 8px; border-bottom: 2px solid #eee; color: #999; }
     .log-table td { padding: 8px; border-bottom: 1px solid #f9f9f9; }
 
     #admin-section { border: 2px solid gold; display: none; }
-    .user-list-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
+    .user-list-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #eee; font-size: 12px; }
 
     .camera-container { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
     
+    /* Help Button - Fixed Z-Index Issue */
+    #help-btn { position: fixed; bottom: 80px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 20px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 15000; transition: 0.3s; }
+    #help-btn:active { transform: scale(0.9); }
+
+    /* Modals */
+    .modal { display: none; position: fixed; z-index: 16000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
+    .modal-content { background: white; padding: 25px; border-radius: 16px; max-width: 400px; text-align: left; margin: 15px; width: 90%; }
+    .warning-title { color: var(--error-red); text-align: center; margin-bottom: 15px; }
+    .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
+
     footer { position: fixed; bottom: 0; width: 100%; background: #333; color: white; height: 60px; display: flex; align-items: center; justify-content: space-around; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.2); }
+    .footer-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
     
     @media (max-width: 768px) {
       .sidebar, .monitoring { width: 100%; }
       .pzem-grid { grid-template-columns: repeat(2, 1fr); }
       footer { flex-wrap: wrap; height: auto; padding: 10px; }
+      #help-btn { bottom: 90px; left: 15px; } /* Adjust for mobile footer */
     }
   </style>
 </head>
@@ -69,33 +83,41 @@
       <h2 id="auth-title">Mezza Login</h2>
       <input type="text" id="app-user" class="auth-input" placeholder="Username">
       <input type="password" id="app-pass" class="auth-input" placeholder="Password">
+      
       <div id="mqtt-fields">
         <input type="text" id="mqtt-user" class="auth-input" placeholder="HiveMQ Username">
         <input type="password" id="mqtt-pass" class="auth-input" placeholder="HiveMQ Password">
       </div>
-      <div style="font-size: 11px; margin-bottom:12px;"><input type="checkbox" id="remember-me"> Remember Device</div>
+      
+      <div style="font-size: 11px; margin-bottom:12px; text-align:left; color:#ccc;">
+        <input type="checkbox" id="remember-me"> Remember Device
+      </div>
       <button id="auth-btn" class="auth-btn" onclick="handleAuth()">UNLOCK SYSTEM</button>
-      <span class="auth-toggle" onclick="toggleAuthMode()">Toggle Login/Sign-up</span>
+      <span class="auth-toggle" id="auth-toggle-text" onclick="toggleAuthMode()">Don't have an account? Sign Up</span>
     </div>
   </div>
 
   <div id="main-content" style="display: none;">
     <header>
       <h2 style="margin:0; font-size: 18px;">SMART MEZZA 3D PRINTER CONTROL</h2>
-      <div style="font-size:11px;">USER: <span id="active-user"></span> <button onclick="logout()" style="margin-left:10px; cursor:pointer;">LOGOUT</button></div>
+      <div style="font-size:11px;">USER: <span id="active-user">---</span> <button onclick="logout()" style="margin-left:10px; cursor:pointer; background:none; border:1px solid #666; color:#ccc; border-radius:3px;">LOGOUT</button></div>
     </header>
 
     <div class="main-container">
       <div class="sidebar">
         <div id="admin-section" class="section">
-          <h3>ADMIN PANEL (MANAGE USERS)</h3>
+          <h3>ADMIN PANEL (USERS)</h3>
           <div id="user-list"></div>
         </div>
+
         <div class="section">
           <h3>MASTER POWER</h3>
-          <div id="led9" class="led"></div> <b>Main System Bus</b>
-          <button id="relay9_btn" class="btn btn-on-style" style="margin-top:10px;" onclick="handleAction(9)">TURN ON</button>
+          <div style="text-align:center; margin-bottom:10px; display:flex; align-items:center; justify-content:center; gap:10px;">
+            <div id="led9" class="led"></div> <span style="font-weight:bold;">Main System Bus</span>
+          </div>
+          <button id="relay9_btn" class="btn btn-on-style" onclick="handleAction(9)">TURN ON</button>
         </div>
+
         <div id="control-panel" class="section disabled-panel">
           <h3>CONTROL PANEL</h3>
           <div class="grid" id="relay-container"></div>
@@ -103,7 +125,11 @@
       </div>
 
       <div class="monitoring">
-        <div class="section"><h3>CAMERA STREAM</h3><div class="camera-container">Awaiting Stream...</div></div>
+        <div class="section">
+          <h3>CAMERA STREAM</h3>
+          <div class="camera-container"><div style="color:#555; font-style:italic;">Awaiting Stream...</div></div>
+        </div>
+
         <div class="section">
           <h3>ELECTRICITY</h3>
           <div class="pzem-grid">
@@ -113,31 +139,50 @@
             <div class="pzem-box"><div id="wh-val" class="pzem-val">0.00</div><small>Wh</small></div>
           </div>
         </div>
-        <div class="section">
+
+        <div class="section" style="flex:1;">
           <h3>ACTIVITY LOG</h3>
           <div style="max-height: 150px; overflow-y: auto;">
-            <table class="log-table"><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Target</th></tr></thead><tbody id="log-body"></tbody></table>
+            <table class="log-table">
+              <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Target</th></tr></thead>
+              <tbody id="log-body"></tbody>
+            </table>
           </div>
         </div>
       </div>
     </div>
 
+    <button id="help-btn" onclick="toggleModal('tutorial-modal')">?</button>
+
+    <div id="tutorial-modal" class="modal">
+        <div class="modal-content">
+          <h3 style="text-align:center; color:#333;">System Tutorial</h3>
+          <p style="font-size: 13px;"><b>1. Master Power:</b> Must be ON to enable the Control Panel.</p>
+          <p style="font-size: 13px;"><b>2. Admin:</b> Login as <b>Admin / 1234</b> to manage users.</p>
+          <p style="font-size: 13px;"><b>3. Safety:</b> Type <b>CONFIRM</b> to power down Main Bus.</p>
+          <button class="btn btn-on-style" onclick="toggleModal('tutorial-modal')" style="margin-top:10px;">GOT IT</button>
+        </div>
+    </div>
+
     <div id="warn-modal" class="modal">
       <div class="modal-content">
-        <h3 id="warn-title" style="color:var(--error-red); text-align:center;">WARNING</h3>
-        <p id="warn-text" style="text-align:center;"></p>
-        <div id="confirm-box" style="display:none; text-align:center;"><input type="text" id="confirm-in" class="auth-input" style="color:black; background:#eee;" placeholder="Type CONFIRM"></div>
+        <h3 class="warning-title">⚠️ CONFIRM ACTION</h3>
+        <p id="warn-text" style="text-align:center; font-size:14px; margin-bottom:15px;"></p>
+        <div id="confirm-box" style="display:none; text-align:center; margin-bottom:15px;">
+            <input type="text" id="confirm-in" class="auth-input" style="color:black; background:#eee; border:1px solid #ccc; text-align:center;" placeholder="Type CONFIRM">
+        </div>
         <div class="modal-btns">
-          <button class="auth-btn" style="background:var(--error-red);" onclick="execPowerOff()">CONFIRM OFF</button>
-          <button class="auth-btn" style="background:#888;" onclick="toggleModal('warn-modal')">CANCEL</button>
+          <button class="btn btn-off-style" onclick="execPowerOff()">CONFIRM OFF</button>
+          <button class="btn btn-on-style" style="background:#ddd; color:#333; border:1px solid #ccc;" onclick="toggleModal('warn-modal')">CANCEL</button>
         </div>
       </div>
     </div>
 
     <footer>
-      <div class="footer-item">🕒 <span id="rtc-clock"></span></div>
+      <div class="footer-item">🕒 <span id="rtc-clock">--:--:--</span></div>
       <div class="footer-item">🌡️ <span id="temp-display">--</span>°C</div>
-      <div class="footer-item">📅 <span id="rtc-date"></span></div>
+      <div class="footer-item">💧 <span id="humi-display">--</span>%</div>
+      <div class="footer-item">📅 <span id="rtc-date">---</span></div>
     </footer>
   </div>
 
@@ -148,7 +193,7 @@ const CLIENT_ID = "web_ui_" + Math.random().toString(16).substr(2, 8);
 let client = null, currentUser = null, isSignUp = false, pendingId = null;
 const labels = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
-// 1. Updated Authentication Logic
+// --- AUTHENTICATION ---
 function handleAuth() {
   const u = document.getElementById('app-user').value;
   const p = document.getElementById('app-pass').value;
@@ -156,32 +201,28 @@ function handleAuth() {
   const mp = document.getElementById('mqtt-pass').value;
   let db = JSON.parse(localStorage.getItem('user_db') || "[]");
 
-  // PRE-MADE ADMIN CHECK
+  // Hardcoded Admin
   if (u === "Admin" && p === "1234") {
     currentUser = {name: "Admin", admin: true};
-    if (document.getElementById('remember-me').checked) {
-      saveSession(mu, mp, currentUser);
-    }
+    if (document.getElementById('remember-me').checked) saveSession(mu, mp, currentUser);
     startSystem(mu, mp);
     return;
   }
 
   if (isSignUp) {
-    if (u.toLowerCase() === "admin") return alert("Reserved Username");
-    if (db.some(x => x.name === u)) return alert("User exists");
+    if(u.toLowerCase() === "admin") return alert("Reserved name!");
+    if(db.some(x => x.name === u)) return alert("User exists!");
     
-    // Standard users are ALWAYS admin: false
-    db.push({name: u, pass: p, admin: false});
+    db.push({name: u, pass: p, admin: false}); // New users are strictly standard
     localStorage.setItem('user_db', JSON.stringify(db));
-    alert("Account created! You may now login."); 
+    alert("Account created! Please log in.");
     toggleAuthMode();
   } else {
     let user = db.find(x => x.name === u && x.pass === p);
-    if (!user) return alert("Invalid Login");
+    if (!user) return alert("Invalid Credentials");
+    
     currentUser = user;
-    if (document.getElementById('remember-me').checked) {
-      saveSession(mu, mp, user);
-    }
+    if (document.getElementById('remember-me').checked) saveSession(mu, mp, user);
     startSystem(mu, mp);
   }
 }
@@ -194,7 +235,6 @@ function saveSession(mu, mp, user) {
 
 function startSystem(u, p) {
   document.getElementById('active-user').innerText = currentUser.name.toUpperCase() + (currentUser.admin ? " (ADMIN)" : "");
-  // Only show Admin Panel if currentUser.admin is true
   if(currentUser.admin) { 
     document.getElementById('admin-section').style.display = 'block'; 
     refreshAdmin(); 
@@ -202,7 +242,7 @@ function startSystem(u, p) {
   initMQTT(u, p);
 }
 
-// 2. MQTT & Logs
+// --- MQTT & LOGIC ---
 function initMQTT(u, p) {
   client = new Paho.MQTT.Client("wss://" + MQTT_HOST + ":" + MQTT_PORT + "/mqtt", CLIENT_ID);
   client.onMessageArrived = (m) => {
@@ -210,72 +250,102 @@ function initMQTT(u, p) {
     if(d.relays) d.relays.forEach((s, i) => updateUI(i+1, s));
     if(d.hasOwnProperty('master')) updateUI(9, d.master);
     if(d.temp) document.getElementById('temp-display').innerText = d.temp.toFixed(1);
+    if(d.humi) document.getElementById('humi-display').innerText = d.humi.toFixed(1);
     ['v', 'a', 'w', 'wh'].forEach(k => { if(d[k]) document.getElementById(k+'-val').innerText = d[k]; });
   };
   client.connect({ useSSL: true, userName: u, password: p, onSuccess: () => {
     document.getElementById('auth-overlay').style.display='none';
     document.getElementById('main-content').style.display='block';
     client.subscribe("/printer_01/status");
-  }});
+  }, onFailure: (e) => { alert("MQTT Connect Failed: " + e.errorMessage); }});
 }
 
 function updateUI(id, s) {
   const led = document.getElementById(`led${id}`), btn = document.getElementById(`relay${id}_btn`);
   if(!led || !btn) return;
   if (s == 1) {
-    led.className = "led led-on"; btn.innerText = "OFF"; btn.className = "btn btn-off-style";
+    led.className = "led led-on"; btn.innerText = "TURN OFF"; btn.className = "btn btn-off-style";
     if (id === 9) document.getElementById('control-panel').classList.remove('disabled-panel');
   } else {
-    led.className = "led"; btn.innerText = "ON"; btn.className = "btn btn-on-style";
+    led.className = "led"; btn.innerText = "TURN ON"; btn.className = "btn btn-on-style";
     if (id === 9) document.getElementById('control-panel').classList.add('disabled-panel');
   }
 }
 
 function handleAction(id) {
+  // Check if LED is ON to trigger warning
   if (document.getElementById(`led${id}`).classList.contains('led-on')) {
     pendingId = id;
-    document.getElementById('warn-text').innerText = `Power off ${id === 9 ? 'Main Bus' : labels[id-1]}?`;
-    document.getElementById('confirm-box').style.display = id === 9 ? 'block' : 'none';
+    const name = id === 9 ? 'Main System Bus' : labels[id-1];
+    document.getElementById('warn-text').innerHTML = `Are you sure you want to turn off <b>${name}</b>?`;
+    
+    // Show 'CONFIRM' input only for Master Bus
+    if (id === 9) {
+        document.getElementById('confirm-box').style.display = 'block';
+        document.getElementById('confirm-in').value = "";
+    } else {
+        document.getElementById('confirm-box').style.display = 'none';
+    }
     toggleModal('warn-modal');
-  } else { sendCmd(id, 1); }
+  } else { 
+    // Turn ON immediately
+    sendCmd(id, 1); 
+  }
 }
 
 function execPowerOff() {
-  if (pendingId === 9 && document.getElementById('confirm-in').value !== "CONFIRM") return alert("Type CONFIRM");
-  sendCmd(pendingId, 0); toggleModal('warn-modal');
+  if (pendingId === 9 && document.getElementById('confirm-in').value !== "CONFIRM") return alert("Type CONFIRM to proceed.");
+  sendCmd(pendingId, 0); 
+  toggleModal('warn-modal');
+  pendingId = null; // Reset pending ID
 }
 
 function sendCmd(id, s) {
   const time = new Date().toLocaleTimeString();
-  const row = `<tr><td>${time}</td><td>${currentUser.name}</td><td>${s ? 'ON' : 'OFF'}</td><td>${id === 9 ? 'Bus' : labels[id-1]}</td></tr>`;
+  const name = id === 9 ? 'Main Bus' : labels[id-1];
+  const action = s ? 'ON' : 'OFF';
+  
+  // Update Log Table
+  const row = `<tr><td>${time}</td><td>${currentUser.name}</td><td>${action}</td><td>${name}</td></tr>`;
   document.getElementById('log-body').insertAdjacentHTML('afterbegin', row);
-  client.send(new Paho.MQTT.Message(JSON.stringify({relay: id, state: s, by: currentUser.name})));
+  
+  // Send MQTT
+  if(client) client.send(new Paho.MQTT.Message(JSON.stringify({relay: id, state: s, by: currentUser.name})));
 }
 
-// 3. Admin & Housekeeping
+// --- ADMIN & UTILS ---
 function refreshAdmin() {
   let db = JSON.parse(localStorage.getItem('user_db') || "[]");
-  if (db.length === 0) {
-    document.getElementById('user-list').innerHTML = "<small style='color:#999'>No standard users created yet.</small>";
-    return;
-  }
-  document.getElementById('user-list').innerHTML = db.map(u => `
+  const list = document.getElementById('user-list');
+  if (db.length === 0) { list.innerHTML = "<small style='color:#888'>No standard users yet.</small>"; return; }
+  
+  list.innerHTML = db.map(u => `
     <div class="user-list-item">
-        ${u.name}
-        <button onclick="delAcc('${u.name}')" style="background:red; color:white; border:none; border-radius:4px; font-size:10px; cursor:pointer; padding:4px 8px;">REMOVE</button>
-    </div>
-  `).join('');
+        <span>${u.name}</span>
+        <button onclick="delAcc('${u.name}')" style="background:var(--error-red); color:white; border:none; border-radius:4px; padding:4px 8px; cursor:pointer;">REMOVE</button>
+    </div>`).join('');
 }
 
 function delAcc(n) { 
-    if(!confirm("Remove user " + n + "?")) return;
+    if(!confirm("Delete user " + n + "?")) return;
     let db = JSON.parse(localStorage.getItem('user_db')); 
     localStorage.setItem('user_db', JSON.stringify(db.filter(x => x.name !== n))); 
     refreshAdmin(); 
 }
 
-function toggleAuthMode() { isSignUp = !isSignUp; document.getElementById('mqtt-fields').style.display = isSignUp ? 'none' : 'block'; }
-function toggleModal(id) { const m = document.getElementById(id); m.style.display = m.style.display === 'flex' ? 'none' : 'flex'; }
+function toggleAuthMode() { 
+    isSignUp = !isSignUp; 
+    document.getElementById('auth-title').innerText = isSignUp ? "Create Account" : "Mezza Login";
+    document.getElementById('auth-btn').innerText = isSignUp ? "SIGN UP" : "UNLOCK SYSTEM";
+    document.getElementById('auth-toggle-text').innerText = isSignUp ? "Back to Login" : "Don't have an account? Sign Up";
+    document.getElementById('mqtt-fields').style.display = isSignUp ? 'none' : 'block'; 
+}
+
+function toggleModal(id) { 
+    const m = document.getElementById(id); 
+    m.style.display = (m.style.display === 'flex') ? 'none' : 'flex'; 
+}
+
 function logout() { localStorage.removeItem('last_u'); location.reload(); }
 
 setInterval(() => {
@@ -289,9 +359,14 @@ window.onload = () => {
   if(last) { currentUser = JSON.parse(last); startSystem(localStorage.getItem('m_u'), localStorage.getItem('m_p')); }
 };
 
+// Generate Controls
 const cont = document.getElementById('relay-container');
 labels.forEach((l, i) => {
-  cont.innerHTML += `<div class="relay-card"><div class="relay-header"><div id="led${i+1}" class="led"></div><small><b>${l}</b></small></div><button id="relay${i+1}_btn" class="btn btn-on-style" onclick="handleAction(${i+1})">ON</button></div>`;
+  cont.innerHTML += `
+    <div class="relay-card">
+      <div class="relay-header"><div id="led${i+1}" class="led"></div><small><b>${l}</b></small></div>
+      <button id="relay${i+1}_btn" class="btn btn-on-style" onclick="handleAction(${i+1})">TURN ON</button>
+    </div>`;
 });
 </script>
 </body>
