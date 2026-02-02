@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Smart Mezza 3D Printer Control</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Smart Mezza 3D Printer Control</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
   <style>
     :root { 
@@ -14,15 +14,18 @@
     }
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: #f0f2f5; display: flex; flex-direction: column; height: 100vh; color: #333; overflow: hidden; }
     
+    /* Auth Overlay */
     #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--dark-bg); display: flex; align-items: center; justify-content: center; z-index: 10000; }
     .auth-box { background: #2d2d2d; padding: 40px; border-radius: 16px; text-align: center; width: 320px; color: white; }
     .auth-input { padding: 12px; border-radius: 8px; border: 1px solid #444; width: 100%; margin-bottom: 12px; box-sizing: border-box; background: #1a1a1a; color: white; }
     .auth-btn { background: var(--primary-green); color: white; padding: 14px; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
 
     header { background: #333; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+    #cloud-bar { font-size: 11px; color: #00ff00; letter-spacing: 1px; }
+    
     .main-container { display: flex; flex: 1; overflow: hidden; padding: 15px; gap: 15px; margin-bottom: 60px; }
     .sidebar { width: 30%; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
-    .monitoring { width: 70%; display: flex; flex-direction: column; gap: 15px; }
+    .monitoring { width: 70%; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
     
     .section { background: var(--card-bg); border-radius: 12px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
     h3 { margin-top: 0; font-size: 13px; color: #666; text-transform: uppercase; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 12px; }
@@ -48,12 +51,10 @@
     .camera-container { width: 100%; flex: 1; min-height: 200px; max-height: 380px; background: #000; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative; }
     .placeholder { color: #555; font-style: italic; font-size: 13px; }
 
-    /* Tutorial Button Styling */
     #help-btn { position: fixed; bottom: 80px; left: 20px; width: 42px; height: 42px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 18px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 1000; transition: 0.3s; }
-    #help-btn:hover { background: #444; transform: scale(1.1); }
     
     .modal { display: none; position: fixed; z-index: 10001; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
-    .modal-content { background: white; padding: 25px; border-radius: 16px; max-width: 400px; text-align: left; }
+    .modal-content { background: white; padding: 25px; border-radius: 16px; max-width: 400px; text-align: left; margin: 15px; }
     .warning-title { color: var(--error-red); text-align: center; margin-bottom: 15px; }
     .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
 
@@ -61,6 +62,28 @@
     .footer-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
     .footer-divider { width: 1px; height: 25px; background: #555; }
     .footer-val { font-weight: bold; color: #00ff00; }
+
+    /* =========================================
+       MOBILE RESPONSIVE OVERRIDES
+       ========================================= */
+    @media (max-width: 768px) {
+      body { overflow-y: auto; height: auto; }
+      .main-container { flex-direction: column; overflow: visible; height: auto; margin-bottom: 80px; }
+      .sidebar, .monitoring { width: 100%; height: auto; overflow: visible; }
+      
+      header { padding: 10px 15px; flex-direction: column; text-align: center; gap: 10px; }
+      header h2 { font-size: 16px; }
+
+      .pzem-grid { grid-template-columns: repeat(2, 1fr); }
+      .btn { padding: 15px; font-size: 12px; } /* Larger touch targets */
+      
+      footer { height: auto; flex-wrap: wrap; padding: 10px 5px; gap: 10px; position: relative; }
+      .footer-divider { display: none; }
+      .footer-item { width: 45%; justify-content: center; font-size: 12px; }
+      
+      #help-btn { bottom: 100px; left: 10px; }
+      .camera-container { min-height: 180px; }
+    }
   </style>
 </head>
 <body>
@@ -78,8 +101,8 @@
   <div id="main-content" style="display: none;">
     <header>
       <div>
-        <h2 style="margin:0; font-size: 18px;">SMART MEZZA 3D PRINTER CONTROL</h2>
-        <div id="cloud-bar" style="font-size:11px; color:#00ff00;">CONNECTED TO CLOUD</div>
+        <h2 style="margin:0;">SMART MEZZA 3D PRINTER CONTROL</h2>
+        <div id="cloud-bar">CONNECTED TO CLOUD</div>
       </div>
       <button style="background:none; border:1px solid #666; color:#ccc; cursor:pointer; padding: 5px 10px; border-radius: 4px; font-size: 11px;" onclick="localStorage.clear(); location.reload();">LOGOUT</button>
     </header>
@@ -124,9 +147,9 @@
     <div id="tutorial-modal" class="modal">
         <div class="modal-content">
           <h3 style="text-align:center; color:#333;">System Tutorial</h3>
-          <p style="font-size: 13px;"><b>1. Master Power:</b> Logic bus control. Must be ON to enable sub-units.</p>
-          <p style="font-size: 13px;"><b>2. Control Panel:</b> Toggle printers or LEDs. Greyed out if Master is OFF.</p>
-          <p style="font-size: 13px;"><b>3. Confirmation:</b> Type <b>CONFIRM</b> to turn off the Main System Bus.</p>
+          <p style="font-size: 13px;"><b>1. Master Power:</b> Logic bus control. Must be ON to power sub-units.</p>
+          <p style="font-size: 13px;"><b>2. Control Panel:</b> Individual unit toggles with LED status.</p>
+          <p style="font-size: 13px;"><b>3. Warning:</b> Turning a device OFF will trigger a confirmation prompt.</p>
           <button class="btn btn-on-style" onclick="toggleModal('tutorial-modal')" style="margin-top:10px;">GOT IT</button>
         </div>
     </div>
@@ -151,9 +174,9 @@
     <footer>
       <div class="footer-item">🕒 <span id="rtc-clock">--:--:--</span></div>
       <div class="footer-divider"></div>
-      <div class="footer-item">🌡️ TEMP: <span id="temp-display" class="footer-val">--°C</span></div>
+      <div class="footer-item">🌡️ <span id="temp-display" class="footer-val">--°C</span></div>
       <div class="footer-divider"></div>
-      <div class="footer-item">💧 HUMIDITY: <span id="humi-display" class="footer-val">--%</span></div>
+      <div class="footer-item">💧 <span id="humi-display" class="footer-val">--%</span></div>
       <div class="footer-divider"></div>
       <div class="footer-item">📅 <span id="rtc-date">--- --, ----</span></div>
     </footer>
