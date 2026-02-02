@@ -55,14 +55,14 @@
     .user-list-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #eee; font-size: 12px; }
 
     /* Camera Feed Fixed Size */
-    .camera-container { width: 100%; aspect-ratio: 16/9; max-height: 280px; background: #000; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+    .camera-container { width: 100%; aspect-ratio: 16/9; max-height: 200px; background: #000; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
     
     /* Help Button Positioned Safe */
-    #help-btn { position: fixed; bottom: 80px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 20px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; transition: 0.3s; }
+    #help-btn { position: fixed; bottom: 80px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 20px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 15000; transition: 0.3s; }
     #help-btn:active { transform: scale(0.9); }
 
     /* Modals */
-    .modal { display: none; position: fixed; z-index: 100000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
+    .modal { display: none; position: fixed; z-index: 16000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
     .modal-content { background: white; padding: 25px; border-radius: 16px; max-width: 400px; text-align: left; margin: 15px; width: 90%; }
     .warning-title { color: var(--error-red); text-align: center; margin-bottom: 15px; }
     .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
@@ -260,23 +260,33 @@ function initMQTT(u, p) {
     document.getElementById('auth-overlay').style.display='none';
     document.getElementById('main-content').style.display='block';
     client.subscribe("/printer_01/status");
-  }, onFailure: (e) => { alert("MQTT Connect Failed: " + e.errorMessage); }});
+  }, onFailure: (e) => { alert("Connection Failed: " + e.errorMessage); }});
 }
 
 function updateUI(id, s) {
   const led = document.getElementById(`led${id}`), btn = document.getElementById(`relay${id}_btn`);
   if(!led || !btn) return;
-  if (s == 1) {
-    led.className = "led led-on"; btn.innerText = "TURN OFF"; btn.className = "btn btn-off-style";
+  // Ensure s is treated as number
+  s = Number(s);
+  
+  if (s === 1) {
+    led.className = "led led-on"; 
+    btn.innerText = "TURN OFF"; 
+    btn.className = "btn btn-off-style";
     if (id === 9) document.getElementById('control-panel').classList.remove('disabled-panel');
   } else {
-    led.className = "led"; btn.innerText = "TURN ON"; btn.className = "btn btn-on-style";
+    led.className = "led"; 
+    btn.innerText = "TURN ON"; 
+    btn.className = "btn btn-on-style";
     if (id === 9) document.getElementById('control-panel').classList.add('disabled-panel');
   }
 }
 
 function handleAction(id) {
-  // Logic for toggling
+  // Check Connection
+  if(!client || !client.isConnected()) { alert("System Offline"); return; }
+
+  // Check state directly from DOM class
   if (document.getElementById(`led${id}`).classList.contains('led-on')) {
     pendingId = id;
     const name = id === 9 ? 'Main System Bus' : labels[id-1];
@@ -306,15 +316,14 @@ function sendCmd(id, s) {
   const name = id === 9 ? 'Main Bus' : labels[id-1];
   const action = s ? 'ON' : 'OFF';
   
-  // Log Update
+  // Optimistic Update: Update UI immediately so button doesn't get stuck
+  updateUI(id, s);
+
+  // Update Log
   const row = `<tr><td>${time}</td><td>${currentUser.name}</td><td>${action}</td><td>${name}</td></tr>`;
   document.getElementById('log-body').insertAdjacentHTML('afterbegin', row);
   
-  // MQTT Send
-  if(client) client.send(new Paho.MQTT.Message(JSON.stringify({relay: id, state: s, by: currentUser.name})));
-  
-  // OPTIMISTIC UI UPDATE (Fixes Unresponsiveness)
-  updateUI(id, s);
+  client.send(new Paho.MQTT.Message(JSON.stringify({relay: id, state: s, by: currentUser.name})));
 }
 
 // --- ADMIN & UTILS ---
@@ -364,13 +373,12 @@ window.onload = () => {
   if(last) { currentUser = JSON.parse(last); startSystem(localStorage.getItem('m_u'), localStorage.getItem('m_p')); }
 };
 
-// Generate Controls
 const cont = document.getElementById('relay-container');
 labels.forEach((l, i) => {
   cont.innerHTML += `
     <div class="relay-card">
       <div class="relay-header"><div id="led${i+1}" class="led"></div><small><b>${l}</b></small></div>
-      <button id="relay${i+1}_btn" class="btn btn-on-style" onclick="handleAction(${i+1})">TURN ON</button>
+      <button id="relay${i+1}_btn" class="btn btn-on-style" onclick="handleAction(${i+1})">ON</button>
     </div>`;
 });
 </script>
