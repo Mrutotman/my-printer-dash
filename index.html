@@ -37,7 +37,9 @@
     .btn-off { background: #ffebee; color: var(--danger); border: 1px solid var(--danger); }
 
     /* Monitoring */
-    .camera-box { background: black; width: 100%; height: 200px; display: flex; align-items: center; justify-content: center; color: #555; border-radius: 8px; }
+    /* UPDATED: Increased max-height to 350px */
+    .camera-box { background: black; width: 100%; aspect-ratio: 16/9; max-height: 350px; display: flex; align-items: center; justify-content: center; color: #555; border-radius: 8px; }
+    
     .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; }
     .pzem-val { font-size: 18px; font-weight: bold; }
     .pzem-label { font-size: 10px; color: #888; }
@@ -45,14 +47,13 @@
     .log-list { font-size: 11px; height: 150px; overflow-y: auto; border-top: 1px solid #eee; }
     .log-row { padding: 4px 0; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; }
 
-    /* Tutorial Button */
-    #help-btn { position: fixed; bottom: 80px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 20px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 10000; transition: 0.3s; }
-    #help-btn:active { transform: scale(0.9); }
-
     /* Modals */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center; }
     .modal-box { background: white; padding: 25px; border-radius: 10px; width: 300px; text-align: center; }
     
+    #help-btn { position: fixed; bottom: 80px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 20px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; transition: 0.3s; }
+    #help-btn:active { transform: scale(0.9); }
+
     footer { position: fixed; bottom: 0; width: 100%; background: #333; color: white; padding: 15px 0; display: flex; justify-content: space-around; font-size: 12px; }
 
     @media (max-width: 700px) {
@@ -133,15 +134,9 @@
   <div id="tutorial-modal" class="modal-overlay">
     <div class="modal-box">
       <h3 style="color:#333;">SYSTEM GUIDE</h3>
-      <p style="font-size:13px; text-align:left;">
-        <b>1. Master Power:</b><br>Turns ON the main bus. Must be ON to control printers.
-      </p>
-      <p style="font-size:13px; text-align:left;">
-        <b>2. Control Panel:</b><br>Toggle individual devices. Locked if Master is OFF.
-      </p>
-      <p style="font-size:13px; text-align:left;">
-        <b>3. Safety:</b><br>Turning OFF requires typing "CONFIRM".
-      </p>
+      <p style="font-size:13px; text-align:left;"><b>1. Master Power:</b><br>Turns ON the main bus. Must be ON to control printers.</p>
+      <p style="font-size:13px; text-align:left;"><b>2. Control Panel:</b><br>Toggle individual devices. Locked if Master is OFF.</p>
+      <p style="font-size:13px; text-align:left;"><b>3. Safety:</b><br>Turning OFF requires typing "CONFIRM".</p>
       <button class="btn btn-on" onclick="closeModal('tutorial-modal')">GOT IT</button>
     </div>
   </div>
@@ -299,8 +294,8 @@ function executeOff() {
 }
 
 function sendCommand(id, state) {
-  // 1. Lock incoming updates for 4s so UI doesn't flicker
-  lockTimer = Date.now() + 4000;
+  // 1. Lock incoming updates for 6s so UI doesn't flicker
+  lockTimer = Date.now() + 6000;
   
   // 2. Update UI Immediately (Optimistic)
   updateState(id, state);
@@ -317,12 +312,10 @@ function sendCommand(id, state) {
 }
 
 // ================= HELPERS =================
-function openModal(id) {
-  document.getElementById(id).style.display = "flex";
-}
-
-function closeModal(id) {
-  document.getElementById(id).style.display = "none";
+function openModal(id) { document.getElementById(id).style.display = "flex"; }
+function closeModal(id) { 
+  if(!id) id = "confirm-modal"; // Default close confirm
+  document.getElementById(id).style.display = "none"; 
   pendingId = null;
 }
 
