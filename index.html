@@ -21,6 +21,7 @@
 
     header { background: #333; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
     
+    /* Main Layout */
     .main-container { display: flex; flex: 1; overflow-y: auto; padding: 15px; gap: 15px; margin-bottom: 60px; flex-wrap: wrap; }
     .sidebar { width: 30%; min-width: 300px; display: flex; flex-direction: column; gap: 15px; }
     .monitoring { flex: 1; min-width: 350px; display: flex; flex-direction: column; gap: 15px; }
@@ -190,7 +191,7 @@ const CLIENT_ID = "web_ui_" + Math.random().toString(16).substr(2, 8);
 let client = null, currentUser = null, isSignUp = false, pendingId = null;
 const labels = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
-// INTERNAL STATE TRACKING (Fixes logic bugs)
+// INTERNAL STATE TRACKING
 let deviceStates = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 };
 
 // --- AUTHENTICATION ---
@@ -258,7 +259,7 @@ function updateUI(id, s) {
   if(!led || !btn) return;
   
   s = Number(s);
-  deviceStates[id] = s; // Update Internal State
+  deviceStates[id] = s; // Sync internal state
 
   if (s === 1) {
     led.className = "led led-on"; btn.innerText = "TURN OFF"; btn.className = "btn btn-off-style";
@@ -272,7 +273,7 @@ function updateUI(id, s) {
 function handleAction(id) {
   if(!client || !client.isConnected()) { alert("System Offline"); return; }
 
-  // Use Internal State, NOT DOM Class
+  // Check state using internal variable, NOT the DOM
   if (deviceStates[id] === 1) {
     pendingId = id;
     const name = id === 9 ? 'Main System Bus' : labels[id-1];
@@ -284,16 +285,16 @@ function handleAction(id) {
     } else {
         document.getElementById('confirm-box').style.display = 'none';
     }
-    toggleModal('warn-modal');
+    toggleModal('warn-modal'); // ONLY show modal, do NOT send command yet
   } else { 
-    sendCmd(id, 1); 
+    sendCmd(id, 1); // If turning ON, do it immediately
   }
 }
 
 function execPowerOff() {
   if (pendingId === 9 && document.getElementById('confirm-in').value !== "CONFIRM") return alert("Type CONFIRM to proceed.");
   sendCmd(pendingId, 0); 
-  toggleModal('warn-modal');
+  toggleModal('warn-modal'); // Close modal
   pendingId = null;
 }
 
@@ -302,7 +303,7 @@ function sendCmd(id, s) {
   const name = id === 9 ? 'Main Bus' : labels[id-1];
   const action = s ? 'ON' : 'OFF';
   
-  // Update UI Optimistically
+  // Optimistic Update
   updateUI(id, s);
 
   // Log
@@ -356,7 +357,11 @@ window.onload = () => {
 
 const cont = document.getElementById('relay-container');
 labels.forEach((l, i) => {
-  cont.innerHTML += `<div class="relay-card"><div class="relay-header"><div id="led${i+1}" class="led"></div><small><b>${l}</b></small></div><button id="relay${i+1}_btn" class="btn btn-on-style" onclick="handleAction(${i+1})">ON</button></div>`;
+  cont.innerHTML += `
+    <div class="relay-card">
+      <div class="relay-header"><div id="led${i+1}" class="led"></div><small><b>${l}</b></small></div>
+      <button id="relay${i+1}_btn" class="btn btn-on-style" onclick="handleAction(${i+1})">ON</button>
+    </div>`;
 });
 </script>
 </body>
