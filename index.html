@@ -297,6 +297,21 @@ function updateState(id, state) {
   state = Number(state);
   deviceState[id] = state; 
 
+  // BUG FIX: If Master Bus (9) is turned OFF, 
+  // force all other devices (1-8) to OFF in the dashboard memory
+  if (id === 9 && state === 0) {
+    for (let i = 1; i <= 8; i++) {
+      deviceState[i] = 0;
+      const subLed = document.getElementById(`led-${i}`);
+      const subBtn = document.getElementById(`btn-${i}`);
+      if (subLed && subBtn) {
+        subLed.classList.remove("on");
+        subBtn.innerText = "TURN ON";
+        subBtn.className = "btn btn-on";
+      }
+    }
+  }
+
   const led = document.getElementById(`led-${id}`);
   const btn = document.getElementById(`btn-${id}`);
   if(!led || !btn) return;
