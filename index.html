@@ -6,334 +6,314 @@
   <title>Smart Mezza 3D Printer Control</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
   <style>
-    :root { 
-      --primary-green: #4CAF50; --error-red: #f44336; 
-      --dark-bg: #1a1a1a; --card-bg: #ffffff; --led-off: #bbb;
-    }
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: #f0f2f5; display: flex; flex-direction: column; height: 100vh; color: #333; overflow-x: hidden; }
+    /* --- CSS STYLES --- */
+    :root { --primary: #4CAF50; --danger: #f44336; --dark: #1a1a1a; --light: #ffffff; --grey: #bbb; }
+    body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f0f2f5; display: flex; flex-direction: column; height: 100vh; overflow-x: hidden; }
     
-    #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--dark-bg); display: flex; align-items: center; justify-content: center; z-index: 20000; }
-    .auth-box { background: #2d2d2d; padding: 30px; border-radius: 16px; text-align: center; width: 320px; color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-    .auth-input { padding: 12px; border-radius: 8px; border: 1px solid #444; width: 100%; margin-bottom: 12px; box-sizing: border-box; background: #1a1a1a; color: white; }
-    .auth-btn { background: var(--primary-green); color: white; padding: 14px; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
-
-    header { background: #333; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+    /* Login Overlay */
+    #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--dark); display: flex; align-items: center; justify-content: center; z-index: 99999; }
+    .login-box { background: #2d2d2d; padding: 30px; border-radius: 12px; width: 300px; text-align: center; color: white; }
+    .input-field { width: 100%; padding: 10px; margin: 5px 0; border-radius: 5px; border: 1px solid #555; background: #111; color: white; box-sizing: border-box; }
+    .action-btn { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; margin-top: 10px; }
     
-    .main-container { display: flex; flex: 1; overflow-y: auto; padding: 15px; gap: 15px; margin-bottom: 60px; flex-wrap: wrap; }
-    .sidebar { width: 30%; min-width: 300px; display: flex; flex-direction: column; gap: 15px; }
-    .monitoring { flex: 1; min-width: 350px; display: flex; flex-direction: column; gap: 15px; }
+    /* Layout */
+    .header { background: #333; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+    .container { display: flex; flex: 1; padding: 15px; gap: 15px; overflow-y: auto; flex-wrap: wrap; margin-bottom: 60px; }
+    .sidebar { width: 30%; min-width: 280px; display: flex; flex-direction: column; gap: 15px; }
+    .main-content { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 15px; }
     
-    .section { background: var(--card-bg); border-radius: 12px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
-    h3 { margin-top: 0; font-size: 13px; color: #666; text-transform: uppercase; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 12px; }
+    .card { background: var(--light); padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; border-bottom: 1px solid #eee; padding-bottom: 5px; }
     
-    .disabled-panel { opacity: 0.4; pointer-events: none; filter: grayscale(1); transition: 0.4s; }
-
-    .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
-    .pzem-box { background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #eee; }
-    .pzem-val { font-size: 20px; font-weight: bold; color: #333; }
-    .pzem-label { font-size: 9px; color: #999; font-weight: bold; }
-
-    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-    .led { width: 9px; height: 9px; border-radius: 50%; background: var(--led-off); display: inline-block; margin-right: 5px; transition: 0.3s; }
-    .led-on { background: var(--primary-green); box-shadow: 0 0 8px var(--primary-green); }
-    .relay-card { border: 1px solid #f0f0f0; padding: 12px; border-radius: 10px; background: #fafafa; text-align: center; }
+    /* Controls */
+    .disabled { opacity: 0.5; pointer-events: none; filter: grayscale(100%); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .relay-item { border: 1px solid #eee; padding: 10px; border-radius: 8px; text-align: center; background: #fafafa; }
+    .led { width: 10px; height: 10px; border-radius: 50%; background: var(--grey); display: inline-block; margin-right: 5px; }
+    .led.on { background: var(--primary); box-shadow: 0 0 8px var(--primary); }
     
-    .btn { font-size: 10px; padding: 10px; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; text-transform: uppercase; transition: 0.3s; }
-    .btn-on-style { background-color: #e8f5e9; color: var(--primary-green); border: 1px solid var(--primary-green); }
-    .btn-off-style { background-color: #ffebee; color: var(--error-red); border: 1px solid var(--error-red); }
+    .btn { width: 100%; padding: 8px; margin-top: 5px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 11px; }
+    .btn-on { background: #e8f5e9; color: var(--primary); border: 1px solid var(--primary); }
+    .btn-off { background: #ffebee; color: var(--danger); border: 1px solid var(--danger); }
 
-    .log-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 5px; }
-    .log-table th { text-align: left; padding: 8px; border-bottom: 2px solid #eee; color: #999; }
-    .log-table td { padding: 8px; border-bottom: 1px solid #f9f9f9; }
-
-    .camera-container { width: 100%; aspect-ratio: 16/9; max-height: 220px; background: #000; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+    /* Monitoring */
+    .camera-box { background: black; width: 100%; height: 200px; display: flex; align-items: center; justify-content: center; color: #555; border-radius: 8px; }
+    .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; }
+    .pzem-val { font-size: 18px; font-weight: bold; }
+    .pzem-label { font-size: 10px; color: #888; }
     
-    #help-btn { position: fixed; bottom: 80px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 20px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; transition: 0.3s; }
-    #help-btn:active { transform: scale(0.9); }
+    .log-list { font-size: 11px; height: 150px; overflow-y: auto; border-top: 1px solid #eee; }
+    .log-row { padding: 4px 0; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; }
 
-    .modal { display: none; position: fixed; z-index: 100000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
-    .modal-content { background: white; padding: 25px; border-radius: 16px; max-width: 400px; text-align: left; margin: 15px; width: 90%; }
-    .warning-title { color: var(--error-red); text-align: center; margin-bottom: 15px; }
-    .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
-
-    footer { position: fixed; bottom: 0; width: 100%; background: #333; color: white; height: 60px; display: flex; align-items: center; justify-content: space-around; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.2); }
-    .footer-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+    /* Modals */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center; }
+    .modal-box { background: white; padding: 25px; border-radius: 10px; width: 300px; text-align: center; }
     
-    @media (max-width: 768px) {
-      .sidebar, .monitoring { width: 100%; }
-      .pzem-grid { grid-template-columns: repeat(2, 1fr); }
-      footer { flex-wrap: wrap; height: auto; padding: 10px; }
-      #help-btn { bottom: 90px; left: 15px; } 
+    footer { position: fixed; bottom: 0; width: 100%; background: #333; color: white; padding: 15px 0; display: flex; justify-content: space-around; font-size: 12px; }
+
+    @media (max-width: 700px) {
+      .container { flex-direction: column; }
+      .sidebar, .main-content { width: 100%; }
     }
   </style>
 </head>
 <body>
 
-  <div id="auth-overlay">
-    <div class="auth-box">
-      <h2 style="margin-bottom:20px;">System Login</h2>
-      <input type="text" id="mqtt-user" class="auth-input" placeholder="HiveMQ Username">
-      <input type="password" id="mqtt-pass" class="auth-input" placeholder="HiveMQ Password">
-      <div style="font-size: 11px; margin-bottom:12px; text-align:left; color:#ccc;">
-        <input type="checkbox" id="remember-me"> Remember Device
+  <div id="login-overlay">
+    <div class="login-box">
+      <h2>SYSTEM LOGIN</h2>
+      <input type="text" id="mqtt-user" class="input-field" placeholder="HiveMQ Username">
+      <input type="password" id="mqtt-pass" class="input-field" placeholder="HiveMQ Password">
+      <div style="font-size:12px; text-align:left; margin-top:5px;">
+        <input type="checkbox" id="remember-me"> Remember Me
       </div>
-      <button id="auth-btn" class="auth-btn" onclick="handleAuth()">UNLOCK SYSTEM</button>
+      <button class="action-btn" onclick="connectSystem()">CONNECT</button>
     </div>
   </div>
 
-  <div id="main-content" style="display: none;">
-    <header>
-      <h2 style="margin:0; font-size: 18px;">SMART MEZZA 3D PRINTER CONTROL</h2>
-      <div style="font-size:11px;">CONNECTED <button onclick="logout()" style="margin-left:10px; cursor:pointer; background:none; border:1px solid #666; color:#ccc; border-radius:3px;">LOGOUT</button></div>
+  <div id="dashboard" style="display:none;">
+    <header class="header">
+      <strong>SMART MEZZA CONTROL</strong>
+      <button onclick="doLogout()" style="background:none; border:1px solid #666; color:#ccc; padding:5px 10px; cursor:pointer;">EXIT</button>
     </header>
 
-    <div class="main-container">
+    <div class="container">
       <div class="sidebar">
-        <div class="section">
-          <h3>MASTER POWER</h3>
-          <div style="text-align:center; margin-bottom:10px; display:flex; align-items:center; justify-content:center; gap:10px;">
-            <div id="led9" class="led"></div> <span style="font-weight:bold;">Main System Bus</span>
+        <div class="card">
+          <h3>MASTER POWER (ID: 9)</h3>
+          <div style="text-align:center; margin-bottom:10px;">
+            <span id="led-9" class="led"></span> <b>System Bus</b>
           </div>
-          <button id="relay9_btn" class="btn btn-on-style" onclick="handleAction(9)">TURN ON</button>
+          <button id="btn-9" class="btn btn-on" onclick="handleClick(9)">TURN ON</button>
         </div>
 
-        <div id="control-panel" class="section disabled-panel">
+        <div id="panel-lock" class="card disabled">
           <h3>CONTROL PANEL</h3>
-          <div class="grid" id="relay-container"></div>
+          <div class="grid-2" id="relay-grid"></div>
         </div>
       </div>
 
-      <div class="monitoring">
-        <div class="section">
-          <h3>CAMERA STREAM</h3>
-          <div class="camera-container"><div style="color:#555; font-style:italic;">Awaiting Stream...</div></div>
+      <div class="main-content">
+        <div class="card">
+          <h3>LIVE FEED</h3>
+          <div class="camera-box">No Signal</div>
         </div>
 
-        <div class="section">
-          <h3>ELECTRICITY</h3>
+        <div class="card">
+          <h3>POWER MONITOR</h3>
           <div class="pzem-grid">
-            <div class="pzem-box"><div id="v-val" class="pzem-val">0</div><small>VOLTS</small></div>
-            <div class="pzem-box"><div id="a-val" class="pzem-val">0.00</div><small>AMPS</small></div>
-            <div class="pzem-box"><div id="w-val" class="pzem-val">0</div><small>WATTS</small></div>
-            <div class="pzem-box"><div id="wh-val" class="pzem-val">0.00</div><small>Wh</small></div>
+            <div><div id="val-v" class="pzem-val">0</div><div class="pzem-label">VOLTS</div></div>
+            <div><div id="val-a" class="pzem-val">0.00</div><div class="pzem-label">AMPS</div></div>
+            <div><div id="val-w" class="pzem-val">0</div><div class="pzem-label">WATTS</div></div>
+            <div><div id="val-wh" class="pzem-val">0.00</div><div class="pzem-label">Wh</div></div>
           </div>
         </div>
 
-        <div class="section" style="flex:1;">
+        <div class="card" style="flex:1;">
           <h3>ACTIVITY LOG</h3>
-          <div style="max-height: 150px; overflow-y: auto;">
-            <table class="log-table">
-              <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Target</th></tr></thead>
-              <tbody id="log-body"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <button id="help-btn" onclick="openModal('tutorial-modal')">?</button>
-
-    <div id="tutorial-modal" class="modal" style="display:none;">
-        <div class="modal-content">
-          <h3 style="text-align:center; color:#333;">System Tutorial</h3>
-          <p style="font-size: 13px;"><b>1. Master Power:</b> Turn ON to enable panel.</p>
-          <p style="font-size: 13px;"><b>2. Safety:</b> Type <b>CONFIRM</b> to power down Master.</p>
-          <button class="btn btn-on-style" onclick="closeModal('tutorial-modal')" style="margin-top:10px;">GOT IT</button>
-        </div>
-    </div>
-
-    <div id="warn-modal" class="modal" style="display:none;">
-      <div class="modal-content">
-        <h3 class="warning-title">⚠️ CONFIRM ACTION</h3>
-        <p id="warn-text" style="text-align:center; font-size:14px; margin-bottom:15px;"></p>
-        <div id="confirm-box" style="display:none; text-align:center; margin-bottom:15px;">
-            <input type="text" id="confirm-in" class="auth-input" style="color:black; background:#eee; border:1px solid #ccc; text-align:center;" placeholder="Type CONFIRM">
-        </div>
-        <div class="modal-btns">
-          <button id="exec-btn" class="btn btn-off-style" onclick="execPowerOff()">CONFIRM OFF</button>
-          <button class="btn btn-on-style" style="background:#ddd; color:#333; border:1px solid #ccc;" onclick="closeModal('warn-modal')">CANCEL</button>
+          <div id="log-container" class="log-list"></div>
         </div>
       </div>
     </div>
 
     <footer>
-      <div class="footer-item">🕒 <span id="rtc-clock">--:--:--</span></div>
-      <div class="footer-item">🌡️ <span id="temp-display">--</span>°C</div>
-      <div class="footer-item">📅 <span id="rtc-date">---</span></div>
+      <span id="clock">--:--:--</span>
+      <span>Temp: <b id="val-temp">--</b>°C</span>
+      <span>Humi: <b id="val-humi">--</b>%</span>
     </footer>
   </div>
 
+  <div id="confirm-modal" class="modal-overlay">
+    <div class="modal-box">
+      <h3 style="color:var(--danger)">⚠️ WARNING</h3>
+      <p id="confirm-msg">Type CONFIRM to turn off.</p>
+      <input type="text" id="confirm-input" class="input-field" style="text-align:center; color:black; background:#eee;" placeholder="Type CONFIRM">
+      <div style="display:flex; gap:10px; margin-top:15px;">
+        <button class="btn btn-off" onclick="executeOff()">CONFIRM OFF</button>
+        <button class="btn btn-on" style="background:#ddd; color:#333; border:1px solid #ccc;" onclick="closeModal()">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
 <script>
+// ================= CONFIGURATION =================
 const MQTT_HOST = "143fa294384e4a2fa42c7bfe8a7ebd1d.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884;
-const CLIENT_ID = "web_ui_" + Math.random().toString(16).substr(2, 8);
+const CLIENT_ID = "web_" + Math.random().toString(16).substr(2, 8);
+const LABELS = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
+
 let client = null;
+let deviceState = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 }; 
+let pendingId = null; 
+let lockTimer = 0; // Anti-Flicker Timestamp
 
-// GLOBAL STATE VARIABLES (CRITICAL FIX)
-let deviceStates = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 };
-let pendingId = null;      // Holds the ID of the device waiting for confirmation
-let pendingState = null;   // Holds the state (0/1) we WANT to switch to
-let commandLock = 0;       // Anti-Flicker Timestamp
-
-const labels = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
-
-// --- UTILS ---
-function getDeviceName(id) {
-    if (id === 9) return "Main System Bus";
-    if (id >= 1 && id <= 8) return labels[id - 1];
-    return "Unknown Device";
-}
-
-function addToLog(action, target) {
-    const time = new Date().toLocaleTimeString();
-    const row = `<tr><td>${time}</td><td>User</td><td>${action}</td><td>${target}</td></tr>`;
-    document.getElementById("log-body").insertAdjacentHTML("afterbegin", row);
-}
-
-// --- AUTHENTICATION ---
-function handleAuth() {
-  const mu = document.getElementById("mqtt-user").value;
-  const mp = document.getElementById("mqtt-pass").value;
-
-  if (!mu || !mp) return alert("Please enter HiveMQ credentials.");
-
-  if (document.getElementById("remember-me").checked) {
-      localStorage.setItem("m_u", mu);
-      localStorage.setItem("m_p", mp);
-  }
-  
-  initMQTT(mu, mp);
-}
-
-// --- MQTT SYSTEM ---
-function initMQTT(u, p) {
-  client = new Paho.MQTT.Client("wss://" + MQTT_HOST + ":" + MQTT_PORT + "/mqtt", CLIENT_ID);
-  
-  client.onMessageArrived = (m) => {
-    // ANTI-FLICKER: Totally ignore incoming status if we just sent a command
-    if (Date.now() < commandLock) return;
-
-    try {
-        const d = JSON.parse(m.payloadString);
-        if(d.relays) d.relays.forEach((s, i) => updateUI(i+1, s));
-        if(d.hasOwnProperty('master')) updateUI(9, d.master);
-        if(d.temp) document.getElementById("temp-display").innerText = d.temp.toFixed(1);
-        ['v', 'a', 'w', 'wh'].forEach(k => { if(d[k]) document.getElementById(k+'-val').innerText = d[k]; });
-    } catch(e) { console.log("Data Error"); }
-  };
-
-  client.connect({ useSSL: true, userName: u, password: p, onSuccess: () => {
-    document.getElementById("auth-overlay").style.display='none';
-    document.getElementById("main-content").style.display='block';
-    client.subscribe("/printer_01/status");
-  }, onFailure: (e) => { alert("Connection Failed: " + e.errorMessage); }});
-}
-
-// --- UI UPDATE LOGIC ---
-function updateUI(id, s) {
-  s = Number(s);
-  deviceStates[id] = s;
-  
-  const led = document.getElementById(`led${id}`);
-  const btn = document.getElementById(`relay${id}_btn`);
-  if(!led || !btn) return;
-
-  if (s === 1) {
-    led.className = "led led-on"; 
-    btn.innerText = "TURN OFF"; 
-    btn.className = "btn btn-off-style";
-    if (id === 9) document.getElementById("control-panel").classList.remove("disabled-panel");
-  } else {
-    led.className = "led"; 
-    btn.innerText = "TURN ON"; 
-    btn.className = "btn btn-on-style";
-    if (id === 9) document.getElementById("control-panel").classList.add("disabled-panel");
-  }
-}
-
-// --- ACTION HANDLER (FIXED) ---
-function handleAction(id) {
-  if(!client || !client.isConnected()) { alert("System Offline"); return; }
-
-  const currentState = deviceStates[id];
-  const newState = currentState === 1 ? 0 : 1;
-  const name = getDeviceName(id);
-
-  // Store Pending Action
-  pendingId = id;
-  pendingState = newState;
-
-  // IF TURNING ON -> NO CONFIRMATION NEEDED
-  if (newState === 1) {
-      sendCmd(id, 1);
-      return;
-  }
-
-  // IF TURNING OFF -> SHOW CONFIRMATION
-  if (id === 9) {
-      document.getElementById("warn-text").innerHTML = `Type <b>CONFIRM</b> to turn off <b>${name}</b>.`;
-      document.getElementById("confirm-box").style.display = "block";
-      document.getElementById("confirm-in").value = ""; 
-  } else {
-      document.getElementById("warn-text").innerHTML = `Are you sure you want to turn OFF <b>${name}</b>?`;
-      document.getElementById("confirm-box").style.display = "none";
-  }
-  openModal("warn-modal");
-}
-
-function execPowerOff() {
-  // STRICT LOGIC CHECK
-  if (pendingId === 9 && pendingState === 0) {
-      const txt = document.getElementById("confirm-in").value.trim();
-      if (txt !== "CONFIRM") {
-          alert("Please type CONFIRM exactly.");
-          return;
-      }
-  }
-  
-  // EXECUTE COMMAND
-  sendCmd(pendingId, pendingState);
-  
-  // CLOSE MODAL & RESET
-  closeModal("warn-modal");
-  pendingId = null;
-  pendingState = null;
-}
-
-function sendCmd(id, s) {
-  // LOCK INCOMING STATUS FOR 6 SECONDS (Fixes Auto-Off)
-  commandLock = Date.now() + 6000; 
-  
-  // OPTIMISTIC UPDATE (Instant Feedback)
-  updateUI(id, s);
-  addToLog(s ? "ON" : "OFF", getDeviceName(id));
-  
-  // SEND MQTT
-  const payload = JSON.stringify({ relay: id, state: s });
-  client.send(new Paho.MQTT.Message(payload));
-}
-
-// --- MODAL UTILS ---
-function openModal(id) { document.getElementById(id).style.display = "flex"; }
-function closeModal(id) { document.getElementById(id).style.display = "none"; }
-function logout() { localStorage.removeItem("m_u"); localStorage.removeItem("m_p"); location.reload(); }
-
-setInterval(() => {
-  const n = new Date();
-  document.getElementById("rtc-clock").innerText = n.toLocaleTimeString();
-  document.getElementById("rtc-date").innerText = n.toLocaleDateString();
-}, 1000);
-
+// ================= INITIALIZATION =================
 window.onload = () => {
-  const mu = localStorage.getItem("m_u");
-  const mp = localStorage.getItem("m_p");
-  if(mu && mp) { initMQTT(mu, mp); }
+  renderRelays();
+  const u = localStorage.getItem("mq_u");
+  const p = localStorage.getItem("mq_p");
+  if(u && p) { 
+    document.getElementById("mqtt-user").value = u;
+    document.getElementById("mqtt-pass").value = p;
+    connectSystem();
+  }
 };
 
-const cont = document.getElementById("relay-container");
-labels.forEach((l, i) => {
-  cont.innerHTML += `<div class="relay-card"><div class="relay-header"><div id="led${i+1}" class="led"></div><small><b>${l}</b></small></div><button id="relay${i+1}_btn" class="btn btn-on-style" onclick="handleAction(${i+1})">ON</button></div>`;
-});
+function renderRelays() {
+  const container = document.getElementById("relay-grid");
+  container.innerHTML = "";
+  LABELS.forEach((name, index) => {
+    const id = index + 1;
+    container.innerHTML += `
+      <div class="relay-item">
+        <div><span id="led-${id}" class="led"></span> <b>${name}</b></div>
+        <button id="btn-${id}" class="btn btn-on" onclick="handleClick(${id})">TURN ON</button>
+      </div>`;
+  });
+}
+
+// ================= MQTT CONNECTION =================
+function connectSystem() {
+  const u = document.getElementById("mqtt-user").value;
+  const p = document.getElementById("mqtt-pass").value;
+  
+  if(!u || !p) return alert("Credentials Required");
+
+  if(document.getElementById("remember-me").checked) {
+    localStorage.setItem("mq_u", u);
+    localStorage.setItem("mq_p", p);
+  }
+
+  client = new Paho.MQTT.Client("wss://" + MQTT_HOST + ":" + MQTT_PORT + "/mqtt", CLIENT_ID);
+  
+  client.onMessageArrived = onMessage;
+  
+  client.connect({
+    useSSL: true, userName: u, password: p,
+    onSuccess: () => {
+      document.getElementById("login-overlay").style.display = "none";
+      document.getElementById("dashboard").style.display = "block";
+      client.subscribe("/printer_01/status");
+      addLog("System Connected");
+    },
+    onFailure: (e) => alert("Connection Failed: " + e.errorMessage)
+  });
+}
+
+function onMessage(m) {
+  // If user just clicked a button, ignore updates for 4 seconds (Prevents Flicker)
+  if(Date.now() < lockTimer) return;
+
+  try {
+    const d = JSON.parse(m.payloadString);
+    if(d.relays) d.relays.forEach((s, i) => updateState(i+1, s));
+    if(d.master !== undefined) updateState(9, d.master);
+    if(d.v) ['v','a','w','wh'].forEach(k => document.getElementById(`val-${k}`).innerText = d[k]);
+    if(d.temp) document.getElementById("val-temp").innerText = d.temp;
+    if(d.humi) document.getElementById("val-humi").innerText = d.humi;
+  } catch(e) { console.error(e); }
+}
+
+// ================= LOGIC & CONTROL =================
+function updateState(id, state) {
+  state = Number(state);
+  deviceState[id] = state; // Update Internal Memory
+
+  const led = document.getElementById(`led-${id}`);
+  const btn = document.getElementById(`btn-${id}`);
+  
+  if(state === 1) {
+    led.classList.add("on");
+    btn.innerText = "TURN OFF";
+    btn.className = "btn btn-off";
+    if(id === 9) document.getElementById("panel-lock").classList.remove("disabled");
+  } else {
+    led.classList.remove("on");
+    btn.innerText = "TURN ON";
+    btn.className = "btn btn-on";
+    if(id === 9) document.getElementById("panel-lock").classList.add("disabled");
+  }
+}
+
+function handleClick(id) {
+  const currentState = deviceState[id]; // Use Internal Memory, NOT UI
+  
+  // IF ON -> ASK TO TURN OFF
+  if(currentState === 1) {
+    pendingId = id;
+    const name = id === 9 ? "Master Bus" : LABELS[id-1];
+    
+    // Setup Modal
+    const input = document.getElementById("confirm-input");
+    const msg = document.getElementById("confirm-msg");
+    
+    if(id === 9) {
+      msg.innerHTML = `Type <b>CONFIRM</b> to kill <b>${name}</b>`;
+      input.style.display = "block";
+      input.value = "";
+    } else {
+      msg.innerHTML = `Turn off <b>${name}</b>?`;
+      input.style.display = "none";
+    }
+    
+    document.getElementById("confirm-modal").style.display = "flex";
+  } 
+  // IF OFF -> TURN ON IMMEDIATELY
+  else {
+    sendCommand(id, 1);
+  }
+}
+
+function executeOff() {
+  // If Master Bus, Check Password
+  if(pendingId === 9) {
+    const txt = document.getElementById("confirm-input").value;
+    if(txt !== "CONFIRM") return alert("Please type CONFIRM");
+  }
+  
+  sendCommand(pendingId, 0);
+  closeModal();
+}
+
+function sendCommand(id, state) {
+  // 1. Lock incoming updates for 4s so UI doesn't flicker
+  lockTimer = Date.now() + 4000;
+  
+  // 2. Update UI Immediately (Optimistic)
+  updateState(id, state);
+  
+  // 3. Send MQTT
+  const payload = JSON.stringify({ relay: id, state: state });
+  const message = new Paho.MQTT.Message(payload);
+  message.destinationName = "/printer_01/commands";
+  client.send(message);
+  
+  // 4. Log it
+  const name = id === 9 ? "Master Bus" : LABELS[id-1];
+  addLog(`${name} turned ${state ? "ON" : "OFF"}`);
+}
+
+// ================= HELPERS =================
+function closeModal() {
+  document.getElementById("confirm-modal").style.display = "none";
+  pendingId = null;
+}
+
+function addLog(msg) {
+  const t = new Date().toLocaleTimeString();
+  const box = document.getElementById("log-container");
+  box.innerHTML = `<div class="log-row"><span>${msg}</span> <span style="color:#888">${t}</span></div>` + box.innerHTML;
+}
+
+function doLogout() {
+  localStorage.clear();
+  location.reload();
+}
+
+setInterval(() => {
+  document.getElementById("clock").innerText = new Date().toLocaleTimeString();
+}, 1000);
+
 </script>
 </body>
 </html>
