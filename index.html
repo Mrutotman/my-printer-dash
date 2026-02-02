@@ -83,10 +83,12 @@
       <h2 id="auth-title">Mezza Login</h2>
       <input type="text" id="app-user" class="auth-input" placeholder="Username">
       <input type="password" id="app-pass" class="auth-input" placeholder="Password">
+      
       <div id="mqtt-credential-fields">
         <input type="text" id="mqtt-user" class="auth-input" placeholder="HiveMQ Username">
         <input type="password" id="mqtt-pass" class="auth-input" placeholder="HiveMQ Password">
       </div>
+
       <div style="font-size: 12px; color:#888; margin-bottom:15px"><input type="checkbox" id="remember-me"> Remember this device</div>
       <button id="auth-main-btn" class="auth-btn" onclick="handleLogin()">UNLOCK SYSTEM</button>
       <span class="auth-toggle" id="auth-switch" onclick="toggleAuthMode()">Don't have an account? Sign Up</span>
@@ -188,8 +190,11 @@ const labels = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free
 function toggleAuthMode() {
   isSignUpMode = !isSignUpMode;
   document.getElementById('auth-title').innerText = isSignUpMode ? "Create Account" : "Mezza Login";
-  document.getElementById('auth-main-btn').innerText = isSignUpMode ? "SIGN UP & UNLOCK" : "UNLOCK SYSTEM";
+  document.getElementById('auth-main-btn').innerText = isSignUpMode ? "REGISTER ACCOUNT" : "UNLOCK SYSTEM";
   document.getElementById('auth-switch').innerText = isSignUpMode ? "Already have an account? Login" : "Don't have an account? Sign Up";
+  
+  // Hide MQTT fields during registration
+  document.getElementById('mqtt-credential-fields').style.display = isSignUpMode ? 'none' : 'block';
 }
 
 function handleLogin() {
@@ -198,13 +203,16 @@ function handleLogin() {
   const mqttU = document.getElementById('mqtt-user').value;
   const mqttP = document.getElementById('mqtt-pass').value;
 
-  if (!user || !pass || !mqttU || !mqttP) return alert("All fields are required!");
+  if (!user || !pass) return alert("User credentials required!");
 
   if (isSignUpMode) {
     localStorage.setItem(`u_${user}`, pass);
-    alert("Account Created!");
+    alert("Local account created! Please log in with system keys.");
+    toggleAuthMode();
+    return;
   } else {
-    if (localStorage.getItem(`u_${user}`) !== pass) return alert("Invalid Credentials!");
+    if (!mqttU || !mqttP) return alert("System keys required for connection!");
+    if (localStorage.getItem(`u_${user}`) !== pass) return alert("Invalid personal credentials!");
   }
 
   currentUser = user;
