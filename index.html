@@ -2,85 +2,80 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Smart 3D Printer Dash - SECURE CLOUD</title>
+  <title>Smart 3D Printer Dash - GLOBAL SECURE</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
   <style>
-    body { font-family: 'Segoe UI', Arial; margin: 0; background-color: #f4f4f9; display: flex; flex-direction: column; height: 100vh; }
+    :root { --primary-green: #4CAF50; --error-red: #f44336; --dark-bg: #1a1a1a; --card-bg: #ffffff; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: #f0f2f5; display: flex; flex-direction: column; height: 100vh; color: #333; }
     
-    /* Login Gatekeeper Styling */
-    #auth-overlay {
-      position: fixed;
-      top: 0; left: 0; width: 100%; height: 100%;
-      background: #1a1a1a;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      z-index: 10000;
-      color: white;
-    }
-    .auth-box { background: #333; padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid #444; width: 300px; }
-    .auth-input { padding: 12px; font-size: 14px; border-radius: 6px; border: 1px solid #555; width: 90%; margin-bottom: 10px; text-align: center; background: #222; color: white; }
-    .auth-btn { background: #4CAF50; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; }
+    /* Auth Overlay */
+    #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--dark-bg); display: flex; align-items: center; justify-content: center; z-index: 10000; }
+    .auth-box { background: #2d2d2d; padding: 40px; border-radius: 16px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.4); width: 320px; color: white; }
+    .auth-input { padding: 12px; font-size: 14px; border-radius: 8px; border: 1px solid #444; width: 100%; margin-bottom: 12px; box-sizing: border-box; background: #1a1a1a; color: white; }
+    .auth-check { margin-bottom: 20px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #bbb; gap: 8px; }
+    .auth-btn { background: var(--primary-green); color: white; padding: 14px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; transition: 0.3s; }
+    .auth-btn:hover { background: #45a049; transform: translateY(-1px); }
 
-    /* Loading Screen */
-    #loading-screen {
-      position: fixed;
-      top: 0; left: 0; width: 100%; height: 100%;
-      background: #333;
-      display: none; flex-direction: column;
-      align-items: center; justify-content: center;
-      z-index: 9999;
-      color: white;
-    }
-    .spinner { border: 4px solid rgba(255, 255, 255, 0.3); border-radius: 50%; border-top: 4px solid #4CAF50; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-    /* Layout Styling */
-    header { background: #333; color: white; padding: 10px 20px; text-align: left; }
-    .main-container { display: flex; flex: 1; overflow: hidden; padding: 15px; gap: 20px; }
-    .sidebar { width: 40%; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
-    .monitoring { width: 60%; display: flex; flex-direction: column; gap: 15px; }
-    .section { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .relay-card { border: 1px solid #eee; padding: 10px; border-radius: 8px; background: #fafafa; text-align: center; }
-    .btn { font-size: 13px; padding: 10px; margin-top: 8px; border: none; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; }
-    .on { background-color: #4CAF50; color: white; }
-    .off { background-color: #f44336; color: white; }
-    .status-text { font-weight: bold; font-size: 14px; }
-    .green { color: #2e7d32; }
-    .red { color: #c62828; }
+    /* Layout & Header */
+    header { background: #333; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    #cloud-bar { font-size: 11px; color: #00ff00; letter-spacing: 1px; }
+    .main-container { display: flex; flex: 1; overflow: hidden; padding: 20px; gap: 20px; }
+    .sidebar { width: 35%; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+    .monitoring { width: 65%; display: flex; flex-direction: column; gap: 20px; }
     
-    .test-readout { display: flex; justify-content: space-around; padding: 15px 0; text-align: center; }
-    .test-val { font-size: 28px; font-weight: bold; color: #333; }
-    .test-label { font-size: 11px; color: #777; text-transform: uppercase; margin-top: 5px; }
-    #cloud-bar { background: #222; color: #00ff00; font-size: 11px; padding: 3px 20px; text-align: right; }
+    /* Sections & Grid */
+    .section { background: var(--card-bg); border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    h3 { margin-top: 0; font-size: 16px; color: #555; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .relay-card { border: 1px solid #f0f0f0; padding: 15px; border-radius: 10px; background: #fafafa; text-align: center; transition: 0.2s; }
+    .relay-card:hover { border-color: #ddd; }
+    
+    /* Buttons & Status */
+    .btn { font-size: 12px; padding: 10px; margin-top: 10px; border: none; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; text-transform: uppercase; transition: 0.3s; }
+    .on { background-color: #e8f5e9; color: var(--primary-green); border: 1px solid var(--primary-green); }
+    .off { background-color: #ffebee; color: var(--error-red); border: 1px solid var(--error-red); }
+    .status-text { font-weight: bold; font-size: 13px; }
+    .green { color: var(--primary-green); }
+    .red { color: var(--error-red); }
+
+    /* Monitoring UI */
+    .test-readout { display: flex; justify-content: space-around; padding: 10px 0; }
+    .test-val { font-size: 32px; font-weight: bold; color: #333; }
+    .test-label { font-size: 11px; color: #888; text-transform: uppercase; margin-top: 4px; }
+    .placeholder { border: 2px dashed #ddd; color: #aaa; display: flex; align-items: center; justify-content: center; min-height: 250px; border-radius: 10px; font-style: italic; background: #fdfdfd; }
+    
+    #logout-btn { background: none; border: 1px solid #666; color: #ccc; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 10px; }
   </style>
 </head>
 <body>
 
   <div id="auth-overlay">
     <div class="auth-box">
-      <h2>🔒 Secure Login</h2>
-      <p style="font-size: 12px; color: #aaa;">Enter HiveMQ Credentials</p>
+      <h2 style="margin-top:0">Farm Access</h2>
+      <p style="font-size: 12px; color: #888; margin-bottom:20px">Credentials are never stored on GitHub</p>
       <input type="text" id="mqtt-user" class="auth-input" placeholder="HiveMQ Username">
       <input type="password" id="mqtt-pass" class="auth-input" placeholder="HiveMQ Password">
-      <button class="auth-btn" onclick="attemptLogin()">CONNECT TO FARM</button>
+      <div class="auth-check">
+        <input type="checkbox" id="remember-me"> <label for="remember-me">Remember this device</label>
+      </div>
+      <button class="auth-btn" onclick="attemptLogin()">CONNECT GLOBALLY</button>
     </div>
   </div>
 
-  <div id="loading-screen">
-    <div class="spinner"></div>
-    <div id="loading-text">Connecting...</div>
-  </div>
-
   <div id="main-content" style="display: none;">
-    <div id="cloud-bar">SYNCING...</div>
-    <header><h2>SMART 3D PRINTER DASHBOARD (GLOBAL)</h2></header>
+    <header>
+      <div>
+        <h2 style="margin:0; font-size: 18px;">PRINTER FARM CONTROL</h2>
+        <div id="cloud-bar">SYNCING WITH HIVEMQ...</div>
+      </div>
+      <button id="logout-btn" onclick="logout()">LOGOUT / CLEAR CACHE</button>
+    </header>
 
     <div class="main-container">
       <div class="sidebar">
         <div class="section">
           <h3>MASTER POWER</h3>
-          <p>Status: <span id="relay9_status" class="status-text red">OFF</span></p>
+          <p>System Status: <span id="relay9_status" class="status-text red">OFF</span></p>
           <button id="relay9_btn" class="btn on" onclick="handleRelayAction(9)">TURN MASTER ON</button>
         </div>
         <div class="section">
@@ -91,7 +86,11 @@
 
       <div class="monitoring">
         <div class="section">
-          <h3>ENERGY MONITORING (PZEM - DHT TEST)</h3>
+          <h3>CAMERA FEED</h3>
+          <div class="placeholder">Awaiting RTSP/Stream Source...</div>
+        </div>
+        <div class="section">
+          <h3>TELEMETRY (DHT11 SENSOR)</h3>
           <div class="test-readout">
             <div><div id="temp-display" class="test-val">--°C</div><div class="test-label">Temperature</div></div>
             <div style="width: 1px; background: #eee;"></div>
@@ -108,17 +107,36 @@ const MQTT_PORT = 8884;
 const CLIENT_ID = "web_ui_" + Math.random().toString(16).substr(2, 8);
 let client = null;
 
+// AUTO-LOGIN LOGIC
+window.onload = () => {
+  const savedUser = localStorage.getItem('mqtt_user');
+  const savedPass = localStorage.getItem('mqtt_pass');
+  if (savedUser && savedPass) {
+    document.getElementById('mqtt-user').value = savedUser;
+    document.getElementById('mqtt-pass').value = savedPass;
+    document.getElementById('remember-me').checked = true;
+    attemptLogin();
+  }
+};
+
 function attemptLogin() {
   const user = document.getElementById('mqtt-user').value;
   const pass = document.getElementById('mqtt-pass').value;
+  const remember = document.getElementById('remember-me').checked;
 
-  if (!user || !pass) {
-    alert("Credentials required!");
-    return;
+  if (!user || !pass) return alert("Credentials required!");
+
+  if (remember) {
+    localStorage.setItem('mqtt_user', user);
+    localStorage.setItem('mqtt_pass', pass);
   }
 
-  document.getElementById('loading-screen').style.display = 'flex';
   initMQTT(user, pass);
+}
+
+function logout() {
+  localStorage.clear();
+  location.reload();
 }
 
 function initMQTT(u, p) {
@@ -131,8 +149,7 @@ function initMQTT(u, p) {
       if(data.hasOwnProperty('master')) updateUI(9, data.master);
       if(data.hasOwnProperty('temp')) document.getElementById('temp-display').innerText = data.temp.toFixed(1) + "°C";
       if(data.hasOwnProperty('humi')) document.getElementById('humi-display').innerText = data.humi.toFixed(1) + "%";
-      hideLoading();
-    } catch(e) { console.error(e); }
+    } catch(e) {}
   };
 
   client.connect({
@@ -140,30 +157,23 @@ function initMQTT(u, p) {
     onSuccess: () => {
       document.getElementById('auth-overlay').style.display = 'none';
       document.getElementById('main-content').style.display = 'block';
-      document.getElementById('cloud-bar').innerText = "GLOBAL CLOUD: CONNECTED";
+      document.getElementById('cloud-bar').innerText = "• CLOUD ONLINE";
       client.subscribe("/printer_01/status");
-      setTimeout(hideLoading, 2000);
     },
-    onFailure: (err) => {
-      alert("Login Failed: Check HiveMQ Credentials");
-      document.getElementById('loading-screen').style.display = 'none';
+    onFailure: () => {
+      alert("Invalid Credentials");
+      logout();
     }
   });
 }
 
-function hideLoading() {
-  const loader = document.getElementById('loading-screen');
-  loader.style.opacity = '0';
-  setTimeout(() => loader.style.display = 'none', 500);
-}
-
-// UI Generation & Actions
+// UI Setup & Handlers
 const container = document.getElementById('relay-container');
-const labels = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "Free 1", "Free 2", "LED Light", "Spare"];
+const labels = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "Free 1", "Free 2", "LED", "Spare"];
 for (let i = 1; i <= 8; i++) {
   container.innerHTML += `
     <div class="relay-card">
-      <small style="color: #666;">${labels[i-1]}</small><br>
+      <small style="color: #999; font-weight:bold">${labels[i-1]}</small><br>
       <span id="relay${i}_status" class="status-text red">OFF</span><br>
       <button id="relay${i}_btn" class="btn on" onclick="handleRelayAction(${i})">ON</button>
     </div>`;
@@ -184,10 +194,10 @@ function updateUI(id, state) {
   
   if (state == 1) {
     statusEl.innerHTML = "ON"; statusEl.className = "status-text green";
-    btnEl.innerHTML = "TURN OFF"; btnEl.className = "btn off";
+    btnEl.innerHTML = "OFF"; btnEl.className = "btn off";
   } else {
     statusEl.innerHTML = "OFF"; statusEl.className = "status-text red";
-    btnEl.innerHTML = "TURN ON"; btnEl.className = "btn on";
+    btnEl.innerHTML = "ON"; btnEl.className = "btn on";
   }
 }
 </script>
