@@ -14,7 +14,7 @@
     }
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: #f0f2f5; display: flex; flex-direction: column; height: 100vh; color: #333; overflow: hidden; }
     
-    /* Auth & Overlay */
+    /* Auth Overlay */
     #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--dark-bg); display: flex; align-items: center; justify-content: center; z-index: 10000; }
     .auth-box { background: #2d2d2d; padding: 40px; border-radius: 16px; text-align: center; width: 320px; color: white; }
     .auth-input { padding: 12px; border-radius: 8px; border: 1px solid #444; width: 100%; margin-bottom: 12px; box-sizing: border-box; background: #1a1a1a; color: white; }
@@ -30,7 +30,7 @@
     .section { background: var(--card-bg); border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
     h3 { margin-top: 0; font-size: 14px; color: #666; text-transform: uppercase; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
     
-    /* PZEM Styling */
+    /* PZEM Interface Restored */
     .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; text-align: center; }
     .pzem-box { background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #eee; }
     .pzem-val { font-size: 22px; font-weight: bold; color: #333; }
@@ -41,27 +41,15 @@
     .relay-header { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 10px; }
     .led { width: 10px; height: 10px; border-radius: 50%; background: var(--led-off); transition: background 0.4s ease, box-shadow 0.4s ease; }
     .led-on { background: var(--primary-green); box-shadow: 0 0 8px var(--primary-green); }
-
     .relay-card { border: 1px solid #f0f0f0; padding: 15px; border-radius: 10px; background: #fafafa; text-align: center; }
     
     /* Smooth Buttons */
-    .btn { 
-      font-size: 11px; 
-      padding: 12px; 
-      border: none; 
-      border-radius: 8px; 
-      cursor: pointer; 
-      width: 100%; 
-      font-weight: bold; 
-      text-transform: uppercase; 
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-      outline: none;
-    }
+    .btn { font-size: 11px; padding: 12px; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; text-transform: uppercase; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); outline: none; }
     .btn:active { transform: scale(0.96); }
     .btn-on-style { background-color: #e8f5e9; color: var(--primary-green); border: 1px solid var(--primary-green); }
     .btn-off-style { background-color: #ffebee; color: var(--error-red); border: 1px solid var(--error-red); }
 
-    /* Camera Feed Fix */
+    /* Camera Interface Polished */
     .camera-container { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative; }
     .placeholder { color: #555; font-style: italic; z-index: 1; }
 
@@ -70,7 +58,7 @@
     #help-btn:hover { background: #444; transform: scale(1.1); }
     
     .modal { display: none; position: fixed; z-index: 10001; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
-    .modal-content { background: white; padding: 30px; border-radius: 16px; max-width: 450px; text-align: left; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    .modal-content { background: white; padding: 30px; border-radius: 16px; max-width: 450px; text-align: left; }
 
     /* Footer Telemetry & RTC */
     footer {
@@ -145,9 +133,9 @@
     <div id="tutorial-modal" class="modal">
         <div class="modal-content">
           <h3 style="text-align:center; color:#333;">System Tutorial</h3>
-          <p><b>1. Master Power:</b> Controls the 5V logic/main bus. Must be ON to activate individual units.</p>
-          <p><b>2. Control Panel:</b> Toggle individual printers or peripherals. Status is shown via the LED indicators.</p>
-          <p><b>3. Telemetry:</b> Real-time environmental and electrical conditions are displayed at the bottom and in the interface.</p>
+          <p><b>1. Master Power:</b> Controls the main system bus. Must be ON to power sub-units.</p>
+          <p><b>2. Control Panel:</b> Toggle individual units. Glowing LED indicates device is active.</p>
+          <p><b>3. Telemetry & Energy:</b> Monitor consumption and environment in real-time at the bottom.</p>
           <button class="btn btn-on-style" onclick="toggleModal('tutorial-modal')" style="margin-top:10px;">GOT IT</button>
         </div>
     </div>
@@ -201,7 +189,6 @@ function initMQTT(u, p) {
     if(d.w) document.getElementById('w-val').innerText = Math.round(d.w);
     if(d.wh) document.getElementById('wh-val').innerText = d.wh.toFixed(2);
   };
-  
   client.connect({ useSSL: true, userName: u, password: p, onSuccess: () => {
     document.getElementById('auth-overlay').style.display='none';
     document.getElementById('main-content').style.display='block';
@@ -233,7 +220,6 @@ function updateUI(id, state) {
   const led = document.getElementById(`led${id}`);
   const btn = document.getElementById(`relay${id}_btn`);
   if(!led || !btn) return;
-
   if (state == 1) {
     led.className = "led led-on";
     btn.innerText = "TURN OFF";
