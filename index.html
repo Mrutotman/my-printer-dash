@@ -14,15 +14,12 @@
     }
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: #f0f2f5; display: flex; flex-direction: column; height: 100vh; color: #333; overflow: hidden; }
     
-    /* Auth Overlay */
     #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--dark-bg); display: flex; align-items: center; justify-content: center; z-index: 10000; }
     .auth-box { background: #2d2d2d; padding: 40px; border-radius: 16px; text-align: center; width: 320px; color: white; }
     .auth-input { padding: 12px; border-radius: 8px; border: 1px solid #444; width: 100%; margin-bottom: 12px; box-sizing: border-box; background: #1a1a1a; color: white; }
     .auth-btn { background: var(--primary-green); color: white; padding: 14px; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
 
     header { background: #333; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-    #cloud-bar { font-size: 11px; color: #00ff00; letter-spacing: 1px; }
-    
     .main-container { display: flex; flex: 1; overflow: hidden; padding: 15px; gap: 15px; margin-bottom: 60px; }
     .sidebar { width: 30%; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
     .monitoring { width: 70%; display: flex; flex-direction: column; gap: 15px; }
@@ -30,6 +27,9 @@
     .section { background: var(--card-bg); border-radius: 12px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
     h3 { margin-top: 0; font-size: 13px; color: #666; text-transform: uppercase; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 12px; }
     
+    /* Control Panel Lock State */
+    .disabled-panel { opacity: 0.5; pointer-events: none; filter: grayscale(1); transition: 0.4s; }
+
     .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
     .pzem-box { background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #eee; }
     .pzem-val { font-size: 20px; font-weight: bold; color: #333; }
@@ -51,7 +51,6 @@
 
     #help-btn { position: fixed; bottom: 80px; left: 20px; width: 42px; height: 42px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 18px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 1000; transition: 0.3s; }
     
-    /* Unified Modal Styling */
     .modal { display: none; position: fixed; z-index: 10001; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
     .modal-content { background: white; padding: 25px; border-radius: 16px; max-width: 400px; text-align: left; }
     .warning-title { color: var(--error-red); text-align: center; margin-bottom: 15px; }
@@ -79,7 +78,7 @@
     <header>
       <div>
         <h2 style="margin:0; font-size: 18px;">SMART MEZZA 3D PRINTER CONTROL</h2>
-        <div id="cloud-bar">CONNECTED TO CLOUD</div>
+        <div id="cloud-bar" style="font-size:11px; color:#00ff00;">CONNECTED TO CLOUD</div>
       </div>
       <button style="background:none; border:1px solid #666; color:#ccc; cursor:pointer; padding: 5px 10px; border-radius: 4px; font-size: 11px;" onclick="localStorage.clear(); location.reload();">LOGOUT</button>
     </header>
@@ -94,7 +93,7 @@
           </div>
           <button id="relay9_btn" class="btn btn-on-style" onclick="handleRelayAction(9)">TURN ON</button>
         </div>
-        <div class="section" style="flex: 1;">
+        <div id="control-panel-wrapper" class="section disabled-panel" style="flex: 1;">
           <h3>CONTROL PANEL</h3>
           <div class="grid" id="relay-container"></div>
         </div>
@@ -119,24 +118,18 @@
       </div>
     </div>
 
-    <button id="help-btn" onclick="toggleModal('tutorial-modal')">?</button>
-
-    <div id="tutorial-modal" class="modal">
-        <div class="modal-content">
-          <h3 style="text-align:center; color:#333;">System Tutorial</h3>
-          <p style="font-size: 13px;"><b>1. Master Power:</b> Logic bus control. Must be ON to power sub-units.</p>
-          <p style="font-size: 13px;"><b>2. Control Panel:</b> Individual unit toggles with LED status.</p>
-          <p style="font-size: 13px;"><b>3. Warning:</b> Turning a device OFF will trigger a confirmation prompt.</p>
-          <button class="btn btn-on-style" onclick="toggleModal('tutorial-modal')" style="margin-top:10px;">GOT IT</button>
-        </div>
-    </div>
-
     <div id="warning-modal" class="modal">
       <div class="modal-content">
         <h3 class="warning-title">⚠️ SYSTEM WARNING</h3>
-        <p id="warning-text" style="font-size: 14px; text-align: center;">Are you sure you want to turn this off? This may interrupt active 3D printing tasks.</p>
+        <p id="warning-text" style="font-size: 14px; text-align: center;"></p>
+        
+        <div id="master-verify-box" style="display:none; text-align:center; margin-top:10px;">
+          <p style="font-size: 12px; color: #666;">Type <b>CONFIRM</b> to power down Main Bus:</p>
+          <input type="text" id="master-confirm-input" class="auth-input" style="background:#eee; color:#000; border:1px solid #ccc;" placeholder="Type here">
+        </div>
+
         <div class="modal-btns">
-          <button class="btn btn-off-style" onclick="confirmPowerOff()">YES, TURN OFF</button>
+          <button id="modal-confirm-btn" class="btn btn-off-style" onclick="confirmPowerOff()">YES, TURN OFF</button>
           <button class="btn btn-on-style" onclick="toggleModal('warning-modal')">NO, CANCEL</button>
         </div>
       </div>
@@ -158,7 +151,7 @@ const MQTT_HOST = "143fa294384e4a2fa42c7bfe8a7ebd1d.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884;
 const CLIENT_ID = "web_ui_" + Math.random().toString(16).substr(2, 8);
 let client = null;
-let pendingRelayId = null; // Store ID for confirmation
+let pendingRelayId = null;
 
 const labels = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
@@ -216,18 +209,34 @@ function handleRelayAction(id) {
   const isCurrentlyOn = led.classList.contains('led-on');
   
   if (isCurrentlyOn) {
-    // If ON, trigger warning
     pendingRelayId = id;
     const deviceName = id === 9 ? "Main System Bus" : labels[id-1];
-    document.getElementById('warning-text').innerHTML = `Are you sure you want to turn off <b>${deviceName}</b>? This will stop all power to the device immediately.`;
+    document.getElementById('warning-text').innerHTML = `Are you sure you want to turn off <b>${deviceName}</b>?`;
+    
+    // Show/Hide verification input for Master Bus (9)
+    const verifyBox = document.getElementById('master-verify-box');
+    if (id === 9) {
+      verifyBox.style.display = 'block';
+      document.getElementById('master-confirm-input').value = "";
+    } else {
+      verifyBox.style.display = 'none';
+    }
+    
     toggleModal('warning-modal');
   } else {
-    // If OFF, turn it on immediately
     sendMqttCmd(id, 1);
   }
 }
 
 function confirmPowerOff() {
+  if (pendingRelayId === 9) {
+    const userInput = document.getElementById('master-confirm-input').value;
+    if (userInput !== "CONFIRM") {
+      alert("Please type 'CONFIRM' to proceed.");
+      return;
+    }
+  }
+
   if (pendingRelayId !== null) {
     sendMqttCmd(pendingRelayId, 0);
     toggleModal('warning-modal');
@@ -245,14 +254,19 @@ function updateUI(id, state) {
   const led = document.getElementById(`led${id}`);
   const btn = document.getElementById(`relay${id}_btn`);
   if(!led || !btn) return;
+
   if (state == 1) {
     led.className = "led led-on";
     btn.innerText = "TURN OFF";
     btn.className = "btn btn-off-style";
+    // If Master (9) is turned ON, enable control panel
+    if (id === 9) document.getElementById('control-panel-wrapper').classList.remove('disabled-panel');
   } else {
     led.className = "led";
     btn.innerText = "TURN ON";
     btn.className = "btn btn-on-style";
+    // If Master (9) is turned OFF, disable control panel
+    if (id === 9) document.getElementById('control-panel-wrapper').classList.add('disabled-panel');
   }
 }
 
