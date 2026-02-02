@@ -5,8 +5,30 @@
   <title>Smart 3D Printer Dash - GLOBAL</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
   <style>
-    /* Your original styling restored */
     body { font-family: 'Segoe UI', Arial; margin: 0; background-color: #f4f4f9; display: flex; flex-direction: column; height: 100vh; }
+    
+    /* Loading Screen Styling */
+    #loading-screen {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: #333;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 9999;
+      color: white;
+      transition: opacity 0.5s ease;
+    }
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top: 4px solid #4CAF50;
+      width: 40px; height: 40px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    /* Original Styling */
     header { background: #333; color: white; padding: 10px 20px; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
     .main-container { display: flex; flex: 1; overflow: hidden; padding: 15px; gap: 20px; }
     .sidebar { width: 40%; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
@@ -22,13 +44,21 @@
     .green { color: #2e7d32; }
     .red { color: #c62828; }
     .placeholder { border: 2px dashed #ccc; color: #999; display: flex; align-items: center; justify-content: center; min-height: 250px; font-style: italic; background: #ebebef; }
-    
-    /* Connection Status Bar */
-    #cloud-bar { background: #222; color: #00ff00; font-size: 12px; padding: 5px 20px; text-align: right; }
+    #help-btn { position: fixed; bottom: 20px; left: 20px; width: 40px; height: 40px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 20px; border: none; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); z-index: 1000; }
+    .modal { display: none; position: fixed; z-index: 1001; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
+    .modal-content { background: white; padding: 25px; border-radius: 12px; max-width: 400px; text-align: center; }
+    .modal-btns { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
+    #cloud-bar { background: #222; color: #00ff00; font-size: 11px; padding: 3px 20px; text-align: right; }
   </style>
 </head>
 <body>
-  <div id="cloud-bar">Connecting to Global Cloud...</div>
+
+  <div id="loading-screen">
+    <div class="spinner"></div>
+    <div id="loading-text">Connecting to Printer Farm Cloud...</div>
+  </div>
+
+  <div id="cloud-bar">SYNCING...</div>
   <header><h2>SMART 3D PRINTER DASHBOARD (GLOBAL)</h2></header>
 
   <div class="main-container">
@@ -39,19 +69,44 @@
         <button id="relay9_btn" class="btn master-btn on" onclick="handleRelayAction(9)">TURN MASTER ON</button>
       </div>
       <div class="section">
-        <h3>PRINTER CHANNELS</h3>
+        <h3>CONTROL PANEL</h3>
         <div class="grid" id="relay-container"></div>
       </div>
     </div>
 
     <div class="monitoring">
-      <div class="section"><h3>CAMERA FEED</h3><div class="placeholder">Global Stream (Setup Required)</div></div>
-      <div class="section"><h3>ENERGY MONITORING</h3><div class="placeholder">Awaiting Power Statistics...</div></div>
+      <div class="section"><h3>CAMERA FEED</h3><div class="placeholder">Stream Output...</div></div>
+      <div class="section"><h3>ENERGY MONITORING</h3><div class="placeholder">Power Statistics...</div></div>
+    </div>
+  </div>
+
+  <button id="help-btn" onclick="toggleModal('tutorial-modal')">?</button>
+
+  <div id="warning-modal" class="modal">
+    <div class="modal-content">
+      <h3 style="color:#c62828">⚠️ WARNING</h3>
+      <p id="warning-text">Confirm Action?</p>
+      <div class="modal-btns">
+        <button class="btn on" style="width: 80px;" onclick="confirmAction()">YES</button>
+        <button class="btn off" style="width: 80px;" onclick="closeModals()">NO</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tutorial-modal" class="modal">
+    <div class="modal-content" style="text-align: left;">
+      <h3 style="text-align:center">Tutorial & Help</h3>
+      <p><b>1. Master Power:</b> Must be ON before individual printers start.</p>
+      <p><b>2. Global Dash:</b> Access your farm from any network.</p>
+      <p><b>3. Safety:</b> Confirmations are required for SHUTDOWN commands.</p>
+      <button class="btn on" onclick="closeModals()">GOT IT</button>
     </div>
   </div>
 
 <script>
-// MQTT CONFIGURATION - RESTORED
+let pendingId = null;
+
+// MQTT Setup
 const MQTT_HOST = "143fa294384e4a2fa42c7bfe8a7ebd1d.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884; 
 const MQTT_USER = "hivemq.webclient.1769879772484";
@@ -63,15 +118,12 @@ const client = new Paho.MQTT.Client("wss://" + MQTT_HOST + ":" + MQTT_PORT + "/m
 client.onMessageArrived = (message) => {
   try {
     const data = JSON.parse(message.payloadString);
-    // Update individual relays
-    if(data.relays) {
-      data.relays.forEach((state, index) => updateUI(index + 1, state));
-    }
-    // Update master
-    if(data.hasOwnProperty('master')) {
-      updateUI(9, data.master);
-    }
-  } catch(e) { console.log("Error parsing status:", e); }
+    if(data.relays) data.relays.forEach((state, index) => updateUI(index + 1, state));
+    if(data.hasOwnProperty('master')) updateUI(9, data.master);
+    
+    // Hide loading screen once first data arrives
+    hideLoading();
+  } catch(e) { console.error(e); }
 };
 
 client.connect({
@@ -79,10 +131,22 @@ client.connect({
   onSuccess: () => {
     document.getElementById('cloud-bar').innerText = "GLOBAL CLOUD: CONNECTED";
     client.subscribe("/printer_01/status");
+    // Fallback: hide loading after 2s if no message arrives but connection is up
+    setTimeout(hideLoading, 2000);
+  },
+  onFailure: () => {
+    document.getElementById('loading-text').innerText = "Connection Failed. Refreshing...";
+    setTimeout(() => location.reload(), 3000);
   }
 });
 
-// GENERATE UI CARDS (Your original labels)
+function hideLoading() {
+  const loader = document.getElementById('loading-screen');
+  loader.style.opacity = '0';
+  setTimeout(() => loader.style.display = 'none', 500);
+}
+
+// Generate UI
 const container = document.getElementById('relay-container');
 const labels = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "Free 1", "Free 2", "LED Light", "Spare"];
 for (let i = 1; i <= 8; i++) {
@@ -97,12 +161,25 @@ for (let i = 1; i <= 8; i++) {
 function handleRelayAction(id) {
   const statusEl = document.getElementById(`relay${id}_status`);
   const isCurrentlyOn = statusEl.innerText.includes("ON");
-  const newState = isCurrentlyOn ? 0 : 1;
-  
-  // Send via MQTT instead of Fetch
-  const msg = new Paho.MQTT.Message(JSON.stringify({relay: id, state: newState}));
+  if (isCurrentlyOn) {
+    pendingId = id;
+    document.getElementById('warning-text').innerText = (id === 9) ? "Turning off Master will kill ALL printers. Continue?" : "Are you sure you want to turn off " + labels[id-1] + "?";
+    toggleModal('warning-modal');
+  } else {
+    sendMqttCmd(id, 1);
+  }
+}
+
+function confirmAction() {
+  if (pendingId !== null) sendMqttCmd(pendingId, 0);
+  closeModals();
+}
+
+function sendMqttCmd(id, state) {
+  const msg = new Paho.MQTT.Message(JSON.stringify({relay: id, state: state}));
   msg.destinationName = "/printer_01/commands";
   client.send(msg);
+  pendingId = null;
 }
 
 function updateUI(id, state) {
@@ -119,6 +196,12 @@ function updateUI(id, state) {
     btnEl.innerHTML = (id === 9) ? "TURN MASTER ON" : "TURN ON";
     btnEl.className = (id === 9) ? "btn master-btn on" : "btn on";
   }
+}
+
+function toggleModal(id) { document.getElementById(id).style.display = 'flex'; }
+function closeModals() { 
+  document.getElementById('warning-modal').style.display = 'none'; 
+  document.getElementById('tutorial-modal').style.display = 'none'; 
 }
 </script>
 </body>
