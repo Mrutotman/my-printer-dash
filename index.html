@@ -46,6 +46,7 @@
     .btn-on-style { background-color: #e8f5e9; color: var(--primary-green); border: 1px solid var(--primary-green); }
     .btn-off-style { background-color: #ffebee; color: var(--error-red); border: 1px solid var(--error-red); }
 
+    /* Logs & Admin */
     .log-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 5px; }
     .log-table th { text-align: left; padding: 8px; border-bottom: 2px solid #eee; color: #999; }
     .log-table td { padding: 8px; border-bottom: 1px solid #f9f9f9; }
@@ -193,7 +194,21 @@ const labels = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free
 
 // INTERNAL STATE & ANTI-FLICKER
 let deviceStates = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 };
-let lastCmdTime = 0; // Timestamp of last user command
+let lastCmdTime = 0; 
+
+// --- HELPER FUNCTIONS (PREVENT CRASHES) ---
+function getDeviceName(id) {
+    if (id === 9) return "Main System Bus";
+    if (id >= 1 && id <= 8) return labels[id-1];
+    return "Unknown Device";
+}
+
+function addToLog(action, target) {
+    const time = new Date().toLocaleTimeString();
+    const user = currentUser ? currentUser.name : "System";
+    const row = `<tr><td>${time}</td><td>${user}</td><td>${action}</td><td>${target}</td></tr>`;
+    document.getElementById('log-body').insertAdjacentHTML('afterbegin', row);
+}
 
 // --- AUTHENTICATION ---
 function handleAuth() {
@@ -242,8 +257,7 @@ function startSystem(u, p) {
 function initMQTT(u, p) {
   client = new Paho.MQTT.Client("wss://" + MQTT_HOST + ":" + MQTT_PORT + "/mqtt", CLIENT_ID);
   client.onMessageArrived = (m) => {
-    // ANTI-FLICKER: Ignore status updates for 4 seconds after user command
-    if (Date.now() - lastCmdTime < 4000) return;
+    if (Date.now() - lastCmdTime < 4000) return; // Anti-Flicker
 
     const d = JSON.parse(m.payloadString);
     if(d.relays) d.relays.forEach((s, i) => updateUI(i+1, s));
@@ -277,28 +291,24 @@ function updateUI(id, s) {
 function handleAction(id) {
   if(!client || !client.isConnected()) { alert("System Offline"); return; }
 
-  const currentState = deviceStates[id] || 0; 
-
-  if (currentState === 1) { 
-    // If ON -> Require Confirmation to Turn OFF
+  // LOGIC FIX: Check internal state, not DOM
+  if (deviceStates[id] === 1) {
     pendingId = id;
-    const name = id === 9 ? 'Main System Bus' : labels[id-1];
+    const name = getDeviceName(id);
     document.getElementById('warn-text').innerHTML = `Are you sure you want to turn off <b>${name}</b>?`;
     
-    // Setup Confirm Box for Master Only
+    // Show 'CONFIRM' input only for Master Bus
     const confirmBox = document.getElementById('confirm-box');
     const confirmInput = document.getElementById('confirm-in');
     
     if (id === 9) {
         confirmBox.style.display = 'block';
-        confirmInput.value = ""; // Clear input
-        confirmInput.focus();
+        confirmInput.value = ""; 
     } else {
         confirmBox.style.display = 'none';
     }
     openModal('warn-modal');
   } else { 
-    // If OFF -> Turn ON Immediately
     sendCmd(id, 1); 
   }
 }
@@ -306,7 +316,7 @@ function handleAction(id) {
 function execPowerOff() {
   const confirmInput = document.getElementById('confirm-in');
   
-  // STRICT check for Master Power
+  // STRICT CHECK: Only if Master Bus (9) is pending
   if (pendingId === 9) {
       if (confirmInput.value.trim() !== "CONFIRM") {
           alert("Please type CONFIRM exactly to proceed.");
@@ -315,25 +325,19 @@ function execPowerOff() {
   }
   
   sendCmd(pendingId, 0); 
-  closeModal('warn-modal'); // Explicitly close modal
+  closeModal('warn-modal'); 
   pendingId = null;
 }
 
 function sendCmd(id, s) {
-  lastCmdTime = Date.now(); // SET ANTI-FLICKER TIMESTAMP
-
-  const time = new Date().toLocaleTimeString();
-  const name = id === 9 ? 'Main Bus' : labels[id-1];
+  lastCmdTime = Date.now();
+  const name = getDeviceName(id);
   const action = s ? 'ON' : 'OFF';
   
-  // Optimistic Update
-  updateUI(id, s);
-
-  // Log
-  const row = `<tr><td>${time}</td><td>${currentUser.name}</td><td>${action}</td><td>${name}</td></tr>`;
-  document.getElementById('log-body').insertAdjacentHTML('afterbegin', row);
+  updateUI(id, s); // Optimistic Update
+  addToLog(action, name); // Safe Log Update
   
-  client.send(new Paho.MQTT.Message(JSON.stringify({relay: id, state: s, by: currentUser.name})));
+  client.send(new Paho.MQTT.Message(JSON.stringify({relay: id, state: s, by: currentUser ? currentUser.name : "Unknown"})));
 }
 
 // --- ADMIN & UTILS ---
