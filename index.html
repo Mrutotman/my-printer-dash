@@ -37,15 +37,17 @@
     .btn-off { background: #ffebee; color: var(--danger); border: 1px solid var(--danger); }
 
     /* Monitoring */
-    /* UPDATED: Increased max-height to 350px */
     .camera-box { background: black; width: 100%; aspect-ratio: 16/9; max-height: 350px; display: flex; align-items: center; justify-content: center; color: #555; border-radius: 8px; }
     
     .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; }
     .pzem-val { font-size: 18px; font-weight: bold; }
     .pzem-label { font-size: 10px; color: #888; }
     
+    /* LOG TABLE */
     .log-list { font-size: 11px; height: 150px; overflow-y: auto; border-top: 1px solid #eee; }
-    .log-row { padding: 4px 0; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; }
+    .log-table { width: 100%; border-collapse: collapse; }
+    .log-table th { text-align: left; background: #f9f9f9; padding: 5px; position: sticky; top: 0; }
+    .log-table td { padding: 5px; border-bottom: 1px solid #eee; color: #555; }
 
     /* Modals */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center; }
@@ -117,7 +119,15 @@
 
         <div class="card" style="flex:1;">
           <h3>ACTIVITY LOG</h3>
-          <div id="log-container" class="log-list"></div>
+          <div class="log-list">
+            <table class="log-table">
+              <thead>
+                <tr><th>Time</th><th>Action</th><th>Target</th></tr>
+              </thead>
+              <tbody id="log-body"></tbody>
+            </table>
+          </div>
+          <button onclick="clearLog()" style="width:100%; margin-top:5px; background:#ddd; border:none; padding:5px; cursor:pointer;">Clear History</button>
         </div>
       </div>
     </div>
@@ -143,7 +153,7 @@
 
   <div id="confirm-modal" class="modal-overlay">
     <div class="modal-box">
-      <h3 style="color:var(--danger)">⚠️ WARNING</h3>
+      <h3 style="color:var(--danger)">⚠️ CONFIRM ACTION</h3>
       <p id="confirm-msg">Type CONFIRM to turn off.</p>
       <input type="text" id="confirm-input" class="input-field" style="text-align:center; color:black; background:#eee;" placeholder="Type CONFIRM">
       <div style="display:flex; gap:10px; margin-top:15px;">
@@ -154,7 +164,6 @@
   </div>
 
 <script>
-// ================= CONFIGURATION =================
 const MQTT_HOST = "143fa294384e4a2fa42c7bfe8a7ebd1d.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884;
 const CLIENT_ID = "web_" + Math.random().toString(16).substr(2, 8);
@@ -168,6 +177,7 @@ let lockTimer = 0; // Anti-Flicker Timestamp
 // ================= INITIALIZATION =================
 window.onload = () => {
   renderRelays();
+  renderLogs(); // Load history on start
   const u = localStorage.getItem("mq_u");
   const p = localStorage.getItem("mq_p");
   if(u && p) { 
@@ -188,6 +198,54 @@ function renderRelays() {
         <button id="btn-${id}" class="btn btn-on" onclick="handleClick(${id})">TURN ON</button>
       </div>`;
   });
+}
+
+// ================= LOG SYSTEM (PERSISTENT) =================
+function addLog(action, target) {
+  const newLog = {
+    time: new Date().toLocaleTimeString(),
+    action: action,
+    target: target
+  };
+
+  // 1. Get Log History
+  let history = JSON.parse(localStorage.getItem("sys_logs") || "[]");
+  
+  // 2. Add New Log to Top
+  history.unshift(newLog);
+  
+  // 3. Trim to 100 items
+  if (history.length > 100) history = history.slice(0, 100);
+  
+  // 4. Save
+  localStorage.setItem("sys_logs", JSON.stringify(history));
+  
+  // 5. Render
+  renderLogs();
+}
+
+function renderLogs() {
+  let history = JSON.parse(localStorage.getItem("sys_logs") || "[]");
+  const tbody = document.getElementById("log-body");
+  
+  if(history.length === 0) {
+    tbody.innerHTML = "<tr><td colspan='3' style='text-align:center; color:#999'>No activity history</td></tr>";
+    return;
+  }
+
+  tbody.innerHTML = history.map(log => `
+    <tr>
+      <td>${log.time}</td>
+      <td>${log.action}</td>
+      <td>${log.target}</td>
+    </tr>
+  `).join("");
+}
+
+function clearLog() {
+  if(!confirm("Clear all history?")) return;
+  localStorage.removeItem("sys_logs");
+  renderLogs();
 }
 
 // ================= MQTT CONNECTION =================
@@ -212,14 +270,14 @@ function connectSystem() {
       document.getElementById("login-overlay").style.display = "none";
       document.getElementById("dashboard").style.display = "block";
       client.subscribe("/printer_01/status");
-      addLog("System Connected");
+      addLog("System", "Connected");
     },
     onFailure: (e) => alert("Connection Failed: " + e.errorMessage)
   });
 }
 
 function onMessage(m) {
-  // If user just clicked a button, ignore updates for 4 seconds (Prevents Flicker)
+  // If user just clicked a button, ignore updates for 6 seconds (Prevents Flicker)
   if(Date.now() < lockTimer) return;
 
   try {
@@ -254,7 +312,7 @@ function updateState(id, state) {
 }
 
 function handleClick(id) {
-  const currentState = deviceState[id]; // Use Internal Memory, NOT UI
+  const currentState = deviceState[id]; // Use Internal Memory
   
   // IF ON -> ASK TO TURN OFF
   if(currentState === 1) {
@@ -308,25 +366,19 @@ function sendCommand(id, state) {
   
   // 4. Log it
   const name = id === 9 ? "Master Bus" : LABELS[id-1];
-  addLog(`${name} turned ${state ? "ON" : "OFF"}`);
+  addLog(state ? "ON" : "OFF", name);
 }
 
 // ================= HELPERS =================
 function openModal(id) { document.getElementById(id).style.display = "flex"; }
 function closeModal(id) { 
-  if(!id) id = "confirm-modal"; // Default close confirm
   document.getElementById(id).style.display = "none"; 
-  pendingId = null;
-}
-
-function addLog(msg) {
-  const t = new Date().toLocaleTimeString();
-  const box = document.getElementById("log-container");
-  box.innerHTML = `<div class="log-row"><span>${msg}</span> <span style="color:#888">${t}</span></div>` + box.innerHTML;
+  pendingId = null; 
 }
 
 function doLogout() {
-  localStorage.clear();
+  localStorage.removeItem("mq_u");
+  localStorage.removeItem("mq_p");
   location.reload();
 }
 
