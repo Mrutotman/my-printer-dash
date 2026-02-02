@@ -2,23 +2,22 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Smart Mezza 3D Printer Control</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Mezza 3D Printer Control</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
   <style>
     :root { 
-      --primary-green: #4CAF50; 
-      --error-red: #f44336; 
-      --dark-bg: #1a1a1a; 
-      --card-bg: #ffffff; 
-      --led-off: #bbb;
+      --primary-green: #4CAF50; --error-red: #f44336; 
+      --dark-bg: #1a1a1a; --card-bg: #ffffff; --led-off: #bbb;
     }
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: #f0f2f5; display: flex; flex-direction: column; height: 100vh; color: #333; overflow: hidden; }
     
     /* Auth Overlay */
     #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--dark-bg); display: flex; align-items: center; justify-content: center; z-index: 10000; }
-    .auth-box { background: #2d2d2d; padding: 40px; border-radius: 16px; text-align: center; width: 320px; color: white; }
+    .auth-box { background: #2d2d2d; padding: 30px; border-radius: 16px; text-align: center; width: 320px; color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
     .auth-input { padding: 12px; border-radius: 8px; border: 1px solid #444; width: 100%; margin-bottom: 12px; box-sizing: border-box; background: #1a1a1a; color: white; }
     .auth-btn { background: var(--primary-green); color: white; padding: 14px; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
+    .auth-toggle { font-size: 11px; color: var(--primary-green); cursor: pointer; margin-top: 15px; text-decoration: underline; display: block; }
 
     header { background: #333; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
     #cloud-bar { font-size: 11px; color: #00ff00; letter-spacing: 1px; }
@@ -63,26 +62,17 @@
     .footer-divider { width: 1px; height: 25px; background: #555; }
     .footer-val { font-weight: bold; color: #00ff00; }
 
-    /* =========================================
-       MOBILE RESPONSIVE OVERRIDES
-       ========================================= */
     @media (max-width: 768px) {
       body { overflow-y: auto; height: auto; }
       .main-container { flex-direction: column; overflow: visible; height: auto; margin-bottom: 80px; }
       .sidebar, .monitoring { width: 100%; height: auto; overflow: visible; }
-      
       header { padding: 10px 15px; flex-direction: column; text-align: center; gap: 10px; }
-      header h2 { font-size: 16px; }
-
       .pzem-grid { grid-template-columns: repeat(2, 1fr); }
-      .btn { padding: 15px; font-size: 12px; } /* Larger touch targets */
-      
-      footer { height: auto; flex-wrap: wrap; padding: 10px 5px; gap: 10px; position: relative; }
+      .btn { padding: 15px; font-size: 12px; }
+      footer { height: auto; flex-wrap: wrap; padding: 10px 5px; position: relative; }
       .footer-divider { display: none; }
       .footer-item { width: 45%; justify-content: center; font-size: 12px; }
-      
       #help-btn { bottom: 100px; left: 10px; }
-      .camera-container { min-height: 180px; }
     }
   </style>
 </head>
@@ -90,21 +80,26 @@
 
   <div id="auth-overlay">
     <div class="auth-box">
-      <h2>Smart Mezza Access</h2>
-      <input type="text" id="mqtt-user" class="auth-input" placeholder="HiveMQ Username">
-      <input type="password" id="mqtt-pass" class="auth-input" placeholder="HiveMQ Password">
-      <div style="font-size: 12px; color:#888; margin-bottom:15px"><input type="checkbox" id="remember-me"> Remember Device</div>
-      <button class="auth-btn" onclick="attemptLogin()">UNLOCK SYSTEM</button>
+      <h2 id="auth-title">Mezza Login</h2>
+      <input type="text" id="app-user" class="auth-input" placeholder="Username">
+      <input type="password" id="app-pass" class="auth-input" placeholder="Password">
+      <div id="mqtt-credential-fields">
+        <input type="text" id="mqtt-user" class="auth-input" placeholder="HiveMQ Username">
+        <input type="password" id="mqtt-pass" class="auth-input" placeholder="HiveMQ Password">
+      </div>
+      <div style="font-size: 12px; color:#888; margin-bottom:15px"><input type="checkbox" id="remember-me"> Remember this device</div>
+      <button id="auth-main-btn" class="auth-btn" onclick="handleLogin()">UNLOCK SYSTEM</button>
+      <span class="auth-toggle" id="auth-switch" onclick="toggleAuthMode()">Don't have an account? Sign Up</span>
     </div>
   </div>
 
   <div id="main-content" style="display: none;">
     <header>
       <div>
-        <h2 style="margin:0;">SMART MEZZA 3D PRINTER CONTROL</h2>
-        <div id="cloud-bar">CONNECTED TO CLOUD</div>
+        <h2 style="margin:0; font-size: 18px;">SMART MEZZA 3D PRINTER CONTROL</h2>
+        <div id="cloud-bar" style="font-size:11px; color:#00ff00;">USER: <span id="active-user">---</span></div>
       </div>
-      <button style="background:none; border:1px solid #666; color:#ccc; cursor:pointer; padding: 5px 10px; border-radius: 4px; font-size: 11px;" onclick="localStorage.clear(); location.reload();">LOGOUT</button>
+      <button style="background:none; border:1px solid #666; color:#ccc; cursor:pointer; padding: 5px 10px; border-radius: 4px; font-size: 11px;" onclick="logout()">LOGOUT</button>
     </header>
 
     <div class="main-container">
@@ -147,9 +142,9 @@
     <div id="tutorial-modal" class="modal">
         <div class="modal-content">
           <h3 style="text-align:center; color:#333;">System Tutorial</h3>
-          <p style="font-size: 13px;"><b>1. Master Power:</b> Logic bus control. Must be ON to power sub-units.</p>
-          <p style="font-size: 13px;"><b>2. Control Panel:</b> Individual unit toggles with LED status.</p>
-          <p style="font-size: 13px;"><b>3. Warning:</b> Turning a device OFF will trigger a confirmation prompt.</p>
+          <p style="font-size: 13px;"><b>1. Master Power:</b> Logic bus control. Must be ON to enable sub-units.</p>
+          <p style="font-size: 13px;"><b>2. Control Panel:</b> Individual unit toggles. Buttons are disabled when Master is OFF.</p>
+          <p style="font-size: 13px;"><b>3. Safety:</b> Type <b>CONFIRM</b> to turn off the Main System Bus.</p>
           <button class="btn btn-on-style" onclick="toggleModal('tutorial-modal')" style="margin-top:10px;">GOT IT</button>
         </div>
     </div>
@@ -158,14 +153,11 @@
       <div class="modal-content">
         <h3 class="warning-title">⚠️ SYSTEM WARNING</h3>
         <p id="warning-text" style="font-size: 14px; text-align: center;"></p>
-        
         <div id="master-verify-box" style="display:none; text-align:center; margin-top:10px;">
-          <p style="font-size: 12px; color: #666;">Type <b>CONFIRM</b> to power down Main Bus:</p>
-          <input type="text" id="master-confirm-input" class="auth-input" style="background:#eee; color:#000; border:1px solid #ccc;" placeholder="Type here">
+          <input type="text" id="master-confirm-input" class="auth-input" style="background:#eee; color:#000; border:1px solid #ccc;" placeholder="Type CONFIRM">
         </div>
-
         <div class="modal-btns">
-          <button id="modal-confirm-btn" class="btn btn-off-style" onclick="confirmPowerOff()">YES, TURN OFF</button>
+          <button class="btn btn-off-style" onclick="confirmPowerOff()">YES, TURN OFF</button>
           <button class="btn btn-on-style" onclick="toggleModal('warning-modal')">NO, CANCEL</button>
         </div>
       </div>
@@ -174,9 +166,9 @@
     <footer>
       <div class="footer-item">🕒 <span id="rtc-clock">--:--:--</span></div>
       <div class="footer-divider"></div>
-      <div class="footer-item">🌡️ <span id="temp-display" class="footer-val">--°C</span></div>
+      <div class="footer-item">🌡️ TEMP: <span id="temp-display" class="footer-val">--°C</span></div>
       <div class="footer-divider"></div>
-      <div class="footer-item">💧 <span id="humi-display" class="footer-val">--%</span></div>
+      <div class="footer-item">💧 HUMIDITY: <span id="humi-display" class="footer-val">--%</span></div>
       <div class="footer-divider"></div>
       <div class="footer-item">📅 <span id="rtc-date">--- --, ----</span></div>
     </footer>
@@ -188,23 +180,50 @@ const MQTT_PORT = 8884;
 const CLIENT_ID = "web_ui_" + Math.random().toString(16).substr(2, 8);
 let client = null;
 let pendingRelayId = null;
+let currentUser = "";
+let isSignUpMode = false;
 
 const labels = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
-function attemptLogin() {
-  const user = document.getElementById('mqtt-user').value;
-  const pass = document.getElementById('mqtt-pass').value;
-  if (document.getElementById('remember-me').checked) {
-    localStorage.setItem('m_u', user); localStorage.setItem('m_p', pass);
-  }
-  initMQTT(user, pass);
+function toggleAuthMode() {
+  isSignUpMode = !isSignUpMode;
+  document.getElementById('auth-title').innerText = isSignUpMode ? "Create Account" : "Mezza Login";
+  document.getElementById('auth-main-btn').innerText = isSignUpMode ? "SIGN UP & UNLOCK" : "UNLOCK SYSTEM";
+  document.getElementById('auth-switch').innerText = isSignUpMode ? "Already have an account? Login" : "Don't have an account? Sign Up";
 }
 
+function handleLogin() {
+  const user = document.getElementById('app-user').value;
+  const pass = document.getElementById('app-pass').value;
+  const mqttU = document.getElementById('mqtt-user').value;
+  const mqttP = document.getElementById('mqtt-pass').value;
+
+  if (!user || !pass || !mqttU || !mqttP) return alert("All fields are required!");
+
+  if (isSignUpMode) {
+    localStorage.setItem(`u_${user}`, pass);
+    alert("Account Created!");
+  } else {
+    if (localStorage.getItem(`u_${user}`) !== pass) return alert("Invalid Credentials!");
+  }
+
+  currentUser = user;
+  if (document.getElementById('remember-me').checked) {
+    localStorage.setItem('m_u', mqttU); localStorage.setItem('m_p', mqttP);
+    localStorage.setItem('last_u', user);
+  }
+  document.getElementById('active-user').innerText = currentUser.toUpperCase();
+  initMQTT(mqttU, mqttP);
+}
+
+function logout() { localStorage.removeItem('last_u'); location.reload(); }
+
 window.onload = () => {
-  if(localStorage.getItem('m_u')) {
-    document.getElementById('mqtt-user').value = localStorage.getItem('m_u');
-    document.getElementById('mqtt-pass').value = localStorage.getItem('m_p');
-    attemptLogin();
+  const lastU = localStorage.getItem('last_u');
+  if (lastU) {
+    currentUser = lastU;
+    document.getElementById('active-user').innerText = currentUser.toUpperCase();
+    initMQTT(localStorage.getItem('m_u'), localStorage.getItem('m_p'));
   }
 };
 
@@ -232,55 +251,29 @@ const container = document.getElementById('relay-container');
 labels.forEach((l, i) => {
   container.innerHTML += `
     <div class="relay-card">
-      <div class="relay-header">
-        <div id="led${i+1}" class="led"></div>
-        <small style="font-weight:bold; font-size: 11px;">${l}</small>
-      </div>
+      <div class="relay-header"><div id="led${i+1}" class="led"></div><small><b>${l}</b></small></div>
       <button id="relay${i+1}_btn" class="btn btn-on-style" onclick="handleRelayAction(${i+1})">TURN ON</button>
     </div>`;
 });
 
 function handleRelayAction(id) {
   const led = document.getElementById(`led${id}`);
-  const isCurrentlyOn = led.classList.contains('led-on');
-  
-  if (isCurrentlyOn) {
+  if (led.classList.contains('led-on')) {
     pendingRelayId = id;
-    const deviceName = id === 9 ? "Main System Bus" : labels[id-1];
-    document.getElementById('warning-text').innerHTML = `Are you sure you want to turn off <b>${deviceName}</b>?`;
-    
-    const verifyBox = document.getElementById('master-verify-box');
-    if (id === 9) {
-      verifyBox.style.display = 'block';
-      document.getElementById('master-confirm-input').value = "";
-    } else {
-      verifyBox.style.display = 'none';
-    }
-    
+    document.getElementById('warning-text').innerHTML = `Turn off <b>${id === 9 ? "Main Bus" : labels[id-1]}</b>?`;
+    document.getElementById('master-verify-box').style.display = id === 9 ? 'block' : 'none';
     toggleModal('warning-modal');
-  } else {
-    sendMqttCmd(id, 1);
-  }
+  } else { sendMqttCmd(id, 1); }
 }
 
 function confirmPowerOff() {
-  if (pendingRelayId === 9) {
-    const userInput = document.getElementById('master-confirm-input').value;
-    if (userInput !== "CONFIRM") {
-      alert("Please type 'CONFIRM' to proceed.");
-      return;
-    }
-  }
-
-  if (pendingRelayId !== null) {
-    sendMqttCmd(pendingRelayId, 0);
-    toggleModal('warning-modal');
-    pendingRelayId = null;
-  }
+  if (pendingRelayId === 9 && document.getElementById('master-confirm-input').value !== "CONFIRM") return alert("Type CONFIRM");
+  sendMqttCmd(pendingRelayId, 0);
+  toggleModal('warning-modal');
 }
 
 function sendMqttCmd(id, state) {
-  const msg = new Paho.MQTT.Message(JSON.stringify({relay: id, state: state}));
+  const msg = new Paho.MQTT.Message(JSON.stringify({relay: id, state: state, by: currentUser}));
   msg.destinationName = "/printer_01/commands";
   client.send(msg);
 }
@@ -289,16 +282,11 @@ function updateUI(id, state) {
   const led = document.getElementById(`led${id}`);
   const btn = document.getElementById(`relay${id}_btn`);
   if(!led || !btn) return;
-
   if (state == 1) {
-    led.className = "led led-on";
-    btn.innerText = "TURN OFF";
-    btn.className = "btn btn-off-style";
+    led.className = "led led-on"; btn.innerText = "TURN OFF"; btn.className = "btn btn-off-style";
     if (id === 9) document.getElementById('control-panel-wrapper').classList.remove('disabled-panel');
   } else {
-    led.className = "led";
-    btn.innerText = "TURN ON";
-    btn.className = "btn btn-on-style";
+    led.className = "led"; btn.innerText = "TURN ON"; btn.className = "btn btn-on-style";
     if (id === 9) document.getElementById('control-panel-wrapper').classList.add('disabled-panel');
   }
 }
