@@ -131,7 +131,6 @@
               <tbody id="log-body"></tbody>
             </table>
           </div>
-          <button onclick="clearLog()" style="width:100%; margin-top:5px; background:#ddd; border:none; padding:5px; cursor:pointer;">Clear History</button>
         </div>
       </div>
     </div>
@@ -168,6 +167,7 @@
   </div>
 
 <script>
+// ================= CONFIGURATION =================
 const MQTT_HOST = "143fa294384e4a2fa42c7bfe8a7ebd1d.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884;
 const CLIENT_ID = "web_" + Math.random().toString(16).substr(2, 8);
@@ -178,16 +178,14 @@ let myDeviceName = "Unknown";
 let deviceState = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 }; 
 let pendingId = null; 
 let pendingState = null;
-let lockTimer = 0; // Anti-Flicker Timestamp
+let lockTimer = 0; 
 
 // ================= INITIALIZATION =================
 window.onload = () => {
   renderRelays();
-  renderLogs();
-  
   const u = localStorage.getItem("mq_u");
   const p = localStorage.getItem("mq_p");
-  const d = localStorage.getItem("mq_d"); // Load saved device name
+  const d = localStorage.getItem("mq_d"); 
   
   if(u && p) { 
     document.getElementById("mqtt-user").value = u;
@@ -210,45 +208,28 @@ function renderRelays() {
   });
 }
 
-// ================= LOG SYSTEM (PERSISTENT) =================
-function addLog(action, target) {
-  const newLog = {
+// ================= LOG SYSTEM (SYNCED VIA MQTT) =================
+function broadcastLog(action, target) {
+  // Instead of saving locally, we send the log to the network
+  const logData = {
     time: new Date().toLocaleTimeString(),
     by: myDeviceName,
     action: action,
     target: target
   };
-
-  let history = JSON.parse(localStorage.getItem("sys_logs") || "[]");
-  history.unshift(newLog);
-  if (history.length > 100) history = history.slice(0, 100);
-  localStorage.setItem("sys_logs", JSON.stringify(history));
-  renderLogs();
-}
-
-function renderLogs() {
-  let history = JSON.parse(localStorage.getItem("sys_logs") || "[]");
-  const tbody = document.getElementById("log-body");
   
-  if(history.length === 0) {
-    tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#999'>No activity history</td></tr>";
-    return;
-  }
-
-  tbody.innerHTML = history.map(log => `
-    <tr>
-      <td>${log.time}</td>
-      <td style="font-weight:bold; color:#555;">${log.by || 'System'}</td>
-      <td>${log.action}</td>
-      <td>${log.target}</td>
-    </tr>
-  `).join("");
+  const message = new Paho.MQTT.Message(JSON.stringify(logData));
+  message.destinationName = "/printer_01/logs"; // Special Topic for logs
+  client.send(message);
 }
 
-function clearLog() {
-  if(!confirm("Clear all history?")) return;
-  localStorage.removeItem("sys_logs");
-  renderLogs();
+function displayLog(data) {
+  const tbody = document.getElementById("log-body");
+  const row = `<tr><td>${data.time}</td><td style="color:#666; font-weight:bold;">${data.by}</td><td>${data.action}</td><td>${data.target}</td></tr>`;
+  tbody.insertAdjacentHTML("afterbegin", row);
+  
+  // Optional: Trim list
+  if (tbody.rows.length > 50) tbody.deleteRow(50);
 }
 
 // ================= MQTT CONNECTION =================
@@ -270,23 +251,39 @@ function connectSystem() {
 
   client = new Paho.MQTT.Client("wss://" + MQTT_HOST + ":" + MQTT_PORT + "/mqtt", CLIENT_ID);
   client.onMessageArrived = onMessage;
+  
   client.connect({
     useSSL: true, userName: u, password: p,
     onSuccess: () => {
       document.getElementById("login-overlay").style.display = "none";
       document.getElementById("dashboard").style.display = "block";
+      
+      // Subscribe to BOTH Status and Logs
       client.subscribe("/printer_01/status");
-      // Don't log "System Connected" to avoid spamming the log on reload
+      client.subscribe("/printer_01/logs"); 
     },
     onFailure: (e) => alert("Connection Failed: " + e.errorMessage)
   });
 }
 
 function onMessage(m) {
-  if(Date.now() < lockTimer) return; // Anti-Flicker
+  const topic = m.destinationName;
+  const payload = m.payloadString;
+
+  // HANDLE LOGS (SYNCED)
+  if (topic === "/printer_01/logs") {
+    try {
+      const logData = JSON.parse(payload);
+      displayLog(logData);
+    } catch(e) { console.error("Log Error", e); }
+    return;
+  }
+
+  // HANDLE DEVICE STATUS (ANTI-FLICKER)
+  if (Date.now() < lockTimer) return;
 
   try {
-    const d = JSON.parse(m.payloadString);
+    const d = JSON.parse(payload);
     if(d.relays) d.relays.forEach((s, i) => updateState(i+1, s));
     if(d.master !== undefined) updateState(9, d.master);
     if(d.v) ['v','a','w','wh'].forEach(k => document.getElementById(`val-${k}`).innerText = d[k]);
@@ -302,8 +299,9 @@ function updateState(id, state) {
 
   const led = document.getElementById(`led-${id}`);
   const btn = document.getElementById(`btn-${id}`);
-  
-  if(state === 1) {
+  if(!led || !btn) return;
+
+  if (state === 1) {
     led.classList.add("on");
     btn.innerText = "TURN OFF";
     btn.className = "btn btn-off";
@@ -364,17 +362,24 @@ function executeOff() {
 function sendCommand(id, state) {
   lockTimer = Date.now() + 6000; // 6s Anti-Flicker
   updateState(id, state); // Optimistic Update
-  addLog(state ? "ON" : "OFF", getDeviceName(id));
   
+  // 1. Send Command to ESP32
   const payload = JSON.stringify({ relay: id, state: state, by: myDeviceName });
   const message = new Paho.MQTT.Message(payload);
   message.destinationName = "/printer_01/commands";
   client.send(message);
+
+  // 2. Broadcast Log to All Devices
+  broadcastLog(state ? "ON" : "OFF", getDeviceName(id));
 }
 
 // ================= HELPERS =================
 function openModal(id) { document.getElementById(id).style.display = "flex"; }
-function closeModal(id) { document.getElementById(id).style.display = "none"; pendingId = null; }
+function closeModal(id) { 
+  if(!id) id = "confirm-modal"; 
+  document.getElementById(id).style.display = "none"; 
+  pendingId = null;
+}
 
 function doLogout() {
   localStorage.removeItem("mq_u");
