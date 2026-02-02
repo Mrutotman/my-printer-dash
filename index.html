@@ -186,20 +186,39 @@
   </div>
 
 <script>
+// ============================================================
+// SMART MEZZA 3D PRINTER CONTROL (LOGIC FIXED VERSION)
+// By Red & ChatGPT — Fixed: Master Bus, Confirm, UI Sync, MQTT Login
+// ============================================================
+
 const MQTT_HOST = "143fa294384e4a2fa42c7bfe8a7ebd1d.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884;
 const CLIENT_ID = "web_ui_" + Math.random().toString(16).substr(2, 8);
-let client = null, currentUser = null, isSignUp = false, pendingId = null;
+
+let client = null;
+let currentUser = null;
+let isSignUp = false;
+
 const labels = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
-// INTERNAL STATE & ANTI-FLICKER
-let deviceStates = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 };
-let lastCmdTime = 0; 
+// ============================================================
+// INTERNAL STATE
+// ============================================================
+let deviceStates = {1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0};
 
-// --- HELPER FUNCTIONS (PREVENT CRASHES) ---
+let pendingAction = {
+    id: null,
+    newState: null
+};
+
+
+// ============================================================
+// UTILITIES
+// ============================================================
+
 function getDeviceName(id) {
     if (id === 9) return "Main System Bus";
-    if (id >= 1 && id <= 8) return labels[id-1];
+    if (id >= 1 && id <= 8) return labels[id - 1];
     return "Unknown Device";
 }
 
@@ -207,182 +226,312 @@ function addToLog(action, target) {
     const time = new Date().toLocaleTimeString();
     const user = currentUser ? currentUser.name : "System";
     const row = `<tr><td>${time}</td><td>${user}</td><td>${action}</td><td>${target}</td></tr>`;
-    document.getElementById('log-body').insertAdjacentHTML('afterbegin', row);
+    document.getElementById("log-body").insertAdjacentHTML("afterbegin", row);
 }
 
-// --- AUTHENTICATION ---
+
+// ============================================================
+// AUTHENTICATION
+// ============================================================
+
 function handleAuth() {
-  const u = document.getElementById('app-user').value;
-  const p = document.getElementById('app-pass').value;
-  const mu = document.getElementById('mqtt-user').value;
-  const mp = document.getElementById('mqtt-pass').value;
-  let db = JSON.parse(localStorage.getItem('user_db') || "[]");
+    const u = document.getElementById("app-user").value;
+    const p = document.getElementById("app-pass").value;
+    const mu = document.getElementById("mqtt-user").value;
+    const mp = document.getElementById("mqtt-pass").value;
 
-  if (u === "Admin" && p === "1234") {
-    currentUser = {name: "Admin", admin: true};
-    if (document.getElementById('remember-me').checked) saveSession(mu, mp, currentUser);
-    startSystem(mu, mp);
-    return;
-  }
+    let db = JSON.parse(localStorage.getItem("user_db") || "[]");
 
-  if (isSignUp) {
-    if(u.toLowerCase() === "admin") return alert("Reserved name!");
-    if(db.some(x => x.name === u)) return alert("User exists!");
-    db.push({name: u, pass: p, admin: false}); 
-    localStorage.setItem('user_db', JSON.stringify(db));
-    alert("Account created! Please log in.");
-    toggleAuthMode();
-  } else {
-    let user = db.find(x => x.name === u && x.pass === p);
+    // ADMIN LOGIN
+    if (u === "Admin" && p === "1234") {
+        currentUser = { name: "Admin", admin: true };
+        if (document.getElementById("remember-me").checked) saveSession(mu, mp, currentUser);
+        startSystem(mu, mp);
+        return;
+    }
+
+    // SIGN UP
+    if (isSignUp) {
+        if (u.toLowerCase() === "admin") return alert("Reserved name!");
+        if (db.some(x => x.name === u)) return alert("User already exists!");
+
+        db.push({ name: u, pass: p, admin: false });
+        localStorage.setItem("user_db", JSON.stringify(db));
+        alert("Account created! Please log in.");
+        toggleAuthMode();
+        return;
+    }
+
+    // USER LOGIN
+    const user = db.find(x => x.name === u && x.pass === p);
     if (!user) return alert("Invalid Credentials");
+
     currentUser = user;
-    if (document.getElementById('remember-me').checked) saveSession(mu, mp, user);
+    if (document.getElementById("remember-me").checked) saveSession(mu, mp, user);
+
     startSystem(mu, mp);
-  }
 }
 
 function saveSession(mu, mp, user) {
-  localStorage.setItem('m_u', mu); 
-  localStorage.setItem('m_p', mp);
-  localStorage.setItem('last_u', JSON.stringify(user));
+    localStorage.setItem("m_u", mu);
+    localStorage.setItem("m_p", mp);
+    localStorage.setItem("last_u", JSON.stringify(user));
 }
 
-function startSystem(u, p) {
-  document.getElementById('active-user').innerText = currentUser.name.toUpperCase() + (currentUser.admin ? " (ADMIN)" : "");
-  if(currentUser.admin) { document.getElementById('admin-section').style.display = 'block'; refreshAdmin(); }
-  initMQTT(u, p);
+function startSystem(mqttUser, mqttPass) {
+    document.getElementById("active-user").innerText =
+        currentUser.name.toUpperCase() + (currentUser.admin ? " (ADMIN)" : "");
+
+    if (currentUser.admin) {
+        document.getElementById("admin-section").style.display = "block";
+        refreshAdmin();
+    }
+
+    initMQTT(mqttUser, mqttPass);
 }
 
-// --- MQTT & LOGIC ---
+
+// ============================================================
+// MQTT SYSTEM (FIXED)
+// ============================================================
+
 function initMQTT(u, p) {
-  client = new Paho.MQTT.Client("wss://" + MQTT_HOST + ":" + MQTT_PORT + "/mqtt", CLIENT_ID);
-  client.onMessageArrived = (m) => {
-    if (Date.now() - lastCmdTime < 4000) return; // Anti-Flicker
+    client = new Paho.MQTT.Client(
+        `wss://${MQTT_HOST}:${MQTT_PORT}/mqtt`,
+        CLIENT_ID
+    );
 
-    const d = JSON.parse(m.payloadString);
-    if(d.relays) d.relays.forEach((s, i) => updateUI(i+1, s));
-    if(d.hasOwnProperty('master')) updateUI(9, d.master);
-    if(d.temp) document.getElementById('temp-display').innerText = d.temp.toFixed(1);
-    ['v', 'a', 'w', 'wh'].forEach(k => { if(d[k]) document.getElementById(k+'-val').innerText = d[k]; });
-  };
-  client.connect({ useSSL: true, userName: u, password: p, onSuccess: () => {
-    document.getElementById('auth-overlay').style.display='none';
-    document.getElementById('main-content').style.display='block';
-    client.subscribe("/printer_01/status");
-  }, onFailure: (e) => { alert("Connection Failed: " + e.errorMessage); }});
+    client.onMessageArrived = (m) => {
+        const d = JSON.parse(m.payloadString);
+
+        if (d.relays) d.relays.forEach((s, i) => updateUI(i + 1, s));
+        if (d.master !== undefined) updateUI(9, d.master);
+
+        if (d.temp) document.getElementById("temp-display").innerText = d.temp.toFixed(1);
+
+        ["v", "a", "w", "wh"].forEach(k => {
+            if (d[k] !== undefined) {
+                document.getElementById(`${k}-val`).innerText = d[k];
+            }
+        });
+    };
+
+    client.connect({
+        useSSL: true,
+        userName: u,
+        password: p,
+
+        onSuccess: () => {
+            console.log("MQTT Connected.");
+            client.subscribe("/printer_01/status");
+
+            document.getElementById("auth-overlay").style.display = "none";
+            document.getElementById("main-content").style.display = "block";
+        },
+
+        onFailure: (e) => {
+            alert("MQTT Connection Failed: " + e.errorMessage);
+        }
+    });
 }
+
+
+// ============================================================
+// UI UPDATE (MQTT ONLY — NO OPTIMISTIC UPDATE)
+// ============================================================
 
 function updateUI(id, s) {
-  const led = document.getElementById(`led${id}`), btn = document.getElementById(`relay${id}_btn`);
-  if(!led || !btn) return;
-  
-  s = Number(s);
-  deviceStates[id] = s;
+    s = Number(s);
+    deviceStates[id] = s;
 
-  if (s === 1) {
-    led.className = "led led-on"; btn.innerText = "TURN OFF"; btn.className = "btn btn-off-style";
-    if (id === 9) document.getElementById('control-panel').classList.remove('disabled-panel');
-  } else {
-    led.className = "led"; btn.innerText = "TURN ON"; btn.className = "btn btn-on-style";
-    if (id === 9) document.getElementById('control-panel').classList.add('disabled-panel');
-  }
+    const led = document.getElementById(`led${id}`);
+    const btn = document.getElementById(`relay${id}_btn`);
+    if (!led || !btn) return;
+
+    if (s === 1) {
+        led.className = "led led-on";
+        btn.innerText = "TURN OFF";
+        btn.className = "btn btn-off-style";
+    } else {
+        led.className = "led";
+        btn.innerText = "TURN ON";
+        btn.className = "btn btn-on-style";
+    }
+
+    // MASTER BUS = ENABLE / DISABLE PANEL
+    if (id === 9) {
+        if (s === 1) {
+            document.getElementById("control-panel").classList.remove("disabled-panel");
+        } else {
+            document.getElementById("control-panel").classList.add("disabled-panel");
+        }
+    }
 }
 
-function handleAction(id) {
-  if(!client || !client.isConnected()) { alert("System Offline"); return; }
 
-  // LOGIC FIX: Check internal state, not DOM
-  if (deviceStates[id] === 1) {
-    pendingId = id;
-    const name = getDeviceName(id);
-    document.getElementById('warn-text').innerHTML = `Are you sure you want to turn off <b>${name}</b>?`;
-    
-    // Show 'CONFIRM' input only for Master Bus
-    const confirmBox = document.getElementById('confirm-box');
-    const confirmInput = document.getElementById('confirm-in');
-    
-    if (id === 9) {
-        confirmBox.style.display = 'block';
-        confirmInput.value = ""; 
-    } else {
-        confirmBox.style.display = 'none';
+// ============================================================
+// ACTION HANDLER (FIXED CONFIRM LOGIC)
+// ============================================================
+
+function handleAction(id) {
+    if (!client || !client.isConnected()) {
+        alert("System Offline");
+        return;
     }
-    openModal('warn-modal');
-  } else { 
-    sendCmd(id, 1); 
-  }
+
+    const currentState = deviceStates[id];
+    const newState = currentState === 1 ? 0 : 1;
+
+    pendingAction.id = id;
+    pendingAction.newState = newState;
+
+    const name = getDeviceName(id);
+
+    // Master Bus OFF requires CONFIRM
+    if (id === 9 && currentState === 1) {
+        document.getElementById("warn-text").innerHTML =
+            `Type <b>CONFIRM</b> to turn off <b>${name}</b>.`;
+        document.getElementById("confirm-box").style.display = "block";
+        document.getElementById("confirm-in").value = "";
+        openModal("warn-modal");
+        return;
+    }
+
+    // Other relays or Master ON
+    document.getElementById("warn-text").innerHTML =
+        `Are you sure you want to ${newState ? "turn ON" : "turn OFF"} <b>${name}</b>?`;
+    document.getElementById("confirm-box").style.display = "none";
+    openModal("warn-modal");
 }
 
 function execPowerOff() {
-  const confirmInput = document.getElementById('confirm-in');
-  
-  // STRICT CHECK: Only if Master Bus (9) is pending
-  if (pendingId === 9) {
-      if (confirmInput.value.trim() !== "CONFIRM") {
-          alert("Please type CONFIRM exactly to proceed.");
-          return;
-      }
-  }
-  
-  sendCmd(pendingId, 0); 
-  closeModal('warn-modal'); 
-  pendingId = null;
+    const { id, newState } = pendingAction;
+
+    // Check CONFIRM for Master Bus OFF
+    if (id === 9 && newState === 0) {
+        const confirmInput = document.getElementById("confirm-in").value.trim();
+        if (confirmInput !== "CONFIRM") {
+            alert("Please type CONFIRM to continue.");
+            return;
+        }
+    }
+
+    sendCmd(id, newState);
+
+    closeModal("warn-modal");
+    pendingAction.id = null;
 }
 
-function sendCmd(id, s) {
-  lastCmdTime = Date.now();
-  const name = getDeviceName(id);
-  const action = s ? 'ON' : 'OFF';
-  
-  updateUI(id, s); // Optimistic Update
-  addToLog(action, name); // Safe Log Update
-  
-  client.send(new Paho.MQTT.Message(JSON.stringify({relay: id, state: s, by: currentUser ? currentUser.name : "Unknown"})));
+
+// ============================================================
+// MQTT COMMAND SEND (NO UI DESYNC)
+// ============================================================
+
+function sendCmd(id, state) {
+    const msg = {
+        relay: id,
+        state: state,
+        by: currentUser ? currentUser.name : "Unknown"
+    };
+
+    const payload = new Paho.MQTT.Message(JSON.stringify(msg));
+    payload.destinationName = "/printer_01/cmd";
+    client.send(payload);
+
+    addToLog(state === 1 ? "ON" : "OFF", getDeviceName(id));
 }
 
-// --- ADMIN & UTILS ---
+
+// ============================================================
+// ADMIN PANEL
+// ============================================================
+
 function refreshAdmin() {
-  let db = JSON.parse(localStorage.getItem('user_db') || "[]");
-  const list = document.getElementById('user-list');
-  if (db.length === 0) { list.innerHTML = "<small style='color:#888'>No standard users yet.</small>"; return; }
-  list.innerHTML = db.map(u => `<div class="user-list-item"><span>${u.name}</span><button onclick="delAcc('${u.name}')" style="background:var(--error-red); color:white; border:none; border-radius:4px; padding:4px 8px; cursor:pointer;">REMOVE</button></div>`).join('');
+    let db = JSON.parse(localStorage.getItem("user_db") || "[]");
+    const list = document.getElementById("user-list");
+
+    if (db.length === 0) {
+        list.innerHTML = "<small style='color:#888'>No users.</small>";
+        return;
+    }
+
+    list.innerHTML = db
+        .map(u =>
+            `<div class="user-list-item">
+                <span>${u.name}</span>
+                <button onclick="delAcc('${u.name}')" 
+                style="background:#f44336; color:white; border:none; padding:4px 8px; border-radius:4px;">REMOVE</button>
+            </div>`
+        )
+        .join("");
 }
 
-function delAcc(n) { 
-    if(!confirm("Delete user " + n + "?")) return;
-    let db = JSON.parse(localStorage.getItem('user_db')); 
-    localStorage.setItem('user_db', JSON.stringify(db.filter(x => x.name !== n))); 
-    refreshAdmin(); 
+function delAcc(name) {
+    if (!confirm("Delete user " + name + "?")) return;
+
+    let db = JSON.parse(localStorage.getItem("user_db"));
+    db = db.filter(x => x.name !== name);
+    localStorage.setItem("user_db", JSON.stringify(db));
+
+    refreshAdmin();
 }
 
-function toggleAuthMode() { 
-    isSignUp = !isSignUp; 
-    document.getElementById('auth-title').innerText = isSignUp ? "Create Account" : "Mezza Login";
-    document.getElementById('auth-btn').innerText = isSignUp ? "SIGN UP" : "UNLOCK SYSTEM";
-    document.getElementById('auth-toggle-text').innerText = isSignUp ? "Back to Login" : "Don't have an account? Sign Up";
-    document.getElementById('mqtt-fields').style.display = isSignUp ? 'none' : 'block'; 
+
+// ============================================================
+// MODALS
+// ============================================================
+
+function openModal(id) {
+    document.getElementById(id).style.display = "flex";
 }
 
-function openModal(id) { document.getElementById(id).style.display = 'flex'; }
-function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+function closeModal(id) {
+    document.getElementById(id).style.display = "none";
+}
 
-function logout() { localStorage.removeItem('last_u'); location.reload(); }
+
+// ============================================================
+// SESSION / CLOCK
+// ============================================================
+
+function logout() {
+    localStorage.removeItem("last_u");
+    location.reload();
+}
 
 setInterval(() => {
-  const n = new Date();
-  document.getElementById('rtc-clock').innerText = n.toLocaleTimeString();
-  document.getElementById('rtc-date').innerText = n.toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'});
+    const n = new Date();
+    document.getElementById("rtc-clock").innerText = n.toLocaleTimeString();
+    document.getElementById("rtc-date").innerText =
+        n.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }, 1000);
 
 window.onload = () => {
-  let last = localStorage.getItem('last_u');
-  if(last) { currentUser = JSON.parse(last); startSystem(localStorage.getItem('m_u'), localStorage.getItem('m_p')); }
+    let last = localStorage.getItem("last_u");
+    if (last) {
+        currentUser = JSON.parse(last);
+        startSystem(localStorage.getItem("m_u"), localStorage.getItem("m_p"));
+    }
 };
 
-const cont = document.getElementById('relay-container');
+// ============================================================
+// RENDER RELAY BUTTONS
+// ============================================================
+
+const cont = document.getElementById("relay-container");
+
 labels.forEach((l, i) => {
-  cont.innerHTML += `<div class="relay-card"><div class="relay-header"><div id="led${i+1}" class="led"></div><small><b>${l}</b></small></div><button id="relay${i+1}_btn" class="btn btn-on-style" onclick="handleAction(${i+1})">ON</button></div>`;
+    cont.innerHTML += `
+        <div class="relay-card">
+            <div class="relay-header">
+                <div id="led${i+1}" class="led"></div>
+                <small><b>${l}</b></small>
+            </div>
+            <button id="relay${i+1}_btn" class="btn btn-on-style" onclick="handleAction(${i+1})">TURN ON</button>
+        </div>`;
 });
+
 </script>
+
 </body>
 </html>
