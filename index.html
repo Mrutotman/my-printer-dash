@@ -2,81 +2,95 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Smart 3D Printer Dash - GLOBAL SECURE</title>
+  <title>Smart Mezza 3D Printer Control</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
   <style>
-    :root { --primary-green: #4CAF50; --error-red: #f44336; --dark-bg: #1a1a1a; --card-bg: #ffffff; }
+    :root { 
+      --primary-green: #4CAF50; 
+      --error-red: #f44336; 
+      --dark-bg: #1a1a1a; 
+      --card-bg: #ffffff; 
+      --led-off: #bbb;
+    }
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: #f0f2f5; display: flex; flex-direction: column; height: 100vh; color: #333; }
     
-    /* Auth Overlay */
+    /* Auth & Loading restored from previous version */
     #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--dark-bg); display: flex; align-items: center; justify-content: center; z-index: 10000; }
-    .auth-box { background: #2d2d2d; padding: 40px; border-radius: 16px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.4); width: 320px; color: white; }
-    .auth-input { padding: 12px; font-size: 14px; border-radius: 8px; border: 1px solid #444; width: 100%; margin-bottom: 12px; box-sizing: border-box; background: #1a1a1a; color: white; }
-    .auth-check { margin-bottom: 20px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #bbb; gap: 8px; }
-    .auth-btn { background: var(--primary-green); color: white; padding: 14px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; transition: 0.3s; }
-    .auth-btn:hover { background: #45a049; transform: translateY(-1px); }
+    .auth-box { background: #2d2d2d; padding: 40px; border-radius: 16px; text-align: center; width: 320px; color: white; }
+    .auth-input { padding: 12px; border-radius: 8px; border: 1px solid #444; width: 100%; margin-bottom: 12px; box-sizing: border-box; background: #1a1a1a; color: white; }
+    .auth-btn { background: var(--primary-green); color: white; padding: 14px; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
 
-    /* Layout & Header */
-    header { background: #333; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    header { background: #333; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
     #cloud-bar { font-size: 11px; color: #00ff00; letter-spacing: 1px; }
     .main-container { display: flex; flex: 1; overflow: hidden; padding: 20px; gap: 20px; }
     .sidebar { width: 35%; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
     .monitoring { width: 65%; display: flex; flex-direction: column; gap: 20px; }
     
-    /* Sections & Grid */
     .section { background: var(--card-bg); border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
     h3 { margin-top: 0; font-size: 16px; color: #555; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
     .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-    .relay-card { border: 1px solid #f0f0f0; padding: 15px; border-radius: 10px; background: #fafafa; text-align: center; transition: 0.2s; }
-    .relay-card:hover { border-color: #ddd; }
     
-    /* Buttons & Status */
-    .btn { font-size: 12px; padding: 10px; margin-top: 10px; border: none; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; text-transform: uppercase; transition: 0.3s; }
-    .on { background-color: #e8f5e9; color: var(--primary-green); border: 1px solid var(--primary-green); }
-    .off { background-color: #ffebee; color: var(--error-red); border: 1px solid var(--error-red); }
-    .status-text { font-weight: bold; font-size: 13px; }
-    .green { color: var(--primary-green); }
-    .red { color: var(--error-red); }
+    /* LED Indicator Styling */
+    .relay-header { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 10px; }
+    .led { width: 10px; height: 10px; border-radius: 50%; background: var(--led-off); transition: background 0.4s ease, box-shadow 0.4s ease; }
+    .led-on { background: var(--primary-green); box-shadow: 0 0 8px var(--primary-green); }
+    .led-error { background: var(--error-red); box-shadow: 0 0 8px var(--error-red); }
 
-    /* Monitoring UI */
+    .relay-card { border: 1px solid #f0f0f0; padding: 15px; border-radius: 10px; background: #fafafa; text-align: center; }
+    
+    /* Smooth Button Transitions */
+    .btn { 
+      font-size: 12px; 
+      padding: 12px; 
+      border: none; 
+      border-radius: 8px; 
+      cursor: pointer; 
+      width: 100%; 
+      font-weight: bold; 
+      text-transform: uppercase; 
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); /* Smooth click effect */
+      outline: none;
+    }
+    .btn:active { transform: scale(0.96); }
+    
+    .btn-on-style { background-color: #e8f5e9; color: var(--primary-green); border: 1px solid var(--primary-green); }
+    .btn-off-style { background-color: #ffebee; color: var(--error-red); border: 1px solid var(--error-red); }
+
     .test-readout { display: flex; justify-content: space-around; padding: 10px 0; }
     .test-val { font-size: 32px; font-weight: bold; color: #333; }
-    .test-label { font-size: 11px; color: #888; text-transform: uppercase; margin-top: 4px; }
-    .placeholder { border: 2px dashed #ddd; color: #aaa; display: flex; align-items: center; justify-content: center; min-height: 250px; border-radius: 10px; font-style: italic; background: #fdfdfd; }
-    
-    #logout-btn { background: none; border: 1px solid #666; color: #ccc; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 10px; }
+    .placeholder { border: 2px dashed #ddd; color: #aaa; display: flex; align-items: center; justify-content: center; min-height: 250px; border-radius: 10px; background: #fdfdfd; }
   </style>
 </head>
 <body>
 
   <div id="auth-overlay">
     <div class="auth-box">
-      <h2 style="margin-top:0">Farm Access</h2>
-      <p style="font-size: 12px; color: #888; margin-bottom:20px">Credentials are never stored on GitHub</p>
+      <h2>Smart Mezza Access</h2>
       <input type="text" id="mqtt-user" class="auth-input" placeholder="HiveMQ Username">
       <input type="password" id="mqtt-pass" class="auth-input" placeholder="HiveMQ Password">
-      <div class="auth-check">
-        <input type="checkbox" id="remember-me"> <label for="remember-me">Remember this device</label>
-      </div>
-      <button class="auth-btn" onclick="attemptLogin()">CONNECT GLOBALLY</button>
+      <div style="font-size: 12px; color:#888; margin-bottom:15px"><input type="checkbox" id="remember-me"> Remember Device</div>
+      <button class="auth-btn" onclick="attemptLogin()">UNLOCK SYSTEM</button>
     </div>
   </div>
 
   <div id="main-content" style="display: none;">
     <header>
       <div>
-        <h2 style="margin:0; font-size: 18px;">PRINTER FARM CONTROL</h2>
-        <div id="cloud-bar">SYNCING WITH HIVEMQ...</div>
+        <h2 style="margin:0; font-size: 18px;">SMART MEZZA 3D PRINTER CONTROL</h2>
+        <div id="cloud-bar">CONNECTED TO CLOUD</div>
       </div>
-      <button id="logout-btn" onclick="logout()">LOGOUT / CLEAR CACHE</button>
+      <button style="background:none; border:1px solid #666; color:#ccc; cursor:pointer;" onclick="localStorage.clear(); location.reload();">LOGOUT</button>
     </header>
 
     <div class="main-container">
       <div class="sidebar">
         <div class="section">
           <h3>MASTER POWER</h3>
-          <p>System Status: <span id="relay9_status" class="status-text red">OFF</span></p>
-          <button id="relay9_btn" class="btn on" onclick="handleRelayAction(9)">TURN MASTER ON</button>
+          <div class="relay-header">
+            <div id="led9" class="led"></div>
+            <span style="font-weight:bold">System Main</span>
+          </div>
+          <button id="relay9_btn" class="btn btn-on-style" onclick="handleRelayAction(9)">TURN ON</button>
         </div>
         <div class="section">
           <h3>CONTROL PANEL</h3>
@@ -85,16 +99,12 @@
       </div>
 
       <div class="monitoring">
+        <div class="section"><h3>CAMERA FEED</h3><div class="placeholder">Awaiting RTSP Source...</div></div>
         <div class="section">
-          <h3>CAMERA FEED</h3>
-          <div class="placeholder">Awaiting RTSP/Stream Source...</div>
-        </div>
-        <div class="section">
-          <h3>TELEMETRY (DHT11 SENSOR)</h3>
+          <h3>TELEMETRY (DHT11)</h3>
           <div class="test-readout">
-            <div><div id="temp-display" class="test-val">--°C</div><div class="test-label">Temperature</div></div>
-            <div style="width: 1px; background: #eee;"></div>
-            <div><div id="humi-display" class="test-val">--%</div><div class="test-label">Humidity</div></div>
+            <div><div id="temp-display" class="test-val">--°C</div><small>TEMP</small></div>
+            <div id="humi-display" class="test-val">--%</div><small>HUMIDITY</small>
           </div>
         </div>
       </div>
@@ -107,97 +117,75 @@ const MQTT_PORT = 8884;
 const CLIENT_ID = "web_ui_" + Math.random().toString(16).substr(2, 8);
 let client = null;
 
-// AUTO-LOGIN LOGIC
-window.onload = () => {
-  const savedUser = localStorage.getItem('mqtt_user');
-  const savedPass = localStorage.getItem('mqtt_pass');
-  if (savedUser && savedPass) {
-    document.getElementById('mqtt-user').value = savedUser;
-    document.getElementById('mqtt-pass').value = savedPass;
-    document.getElementById('remember-me').checked = true;
-    attemptLogin();
-  }
-};
+// New Labels as requested
+const labels = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
 function attemptLogin() {
   const user = document.getElementById('mqtt-user').value;
   const pass = document.getElementById('mqtt-pass').value;
-  const remember = document.getElementById('remember-me').checked;
-
-  if (!user || !pass) return alert("Credentials required!");
-
-  if (remember) {
-    localStorage.setItem('mqtt_user', user);
-    localStorage.setItem('mqtt_pass', pass);
+  if (document.getElementById('remember-me').checked) {
+    localStorage.setItem('m_u', user); localStorage.setItem('m_p', pass);
   }
-
   initMQTT(user, pass);
 }
 
-function logout() {
-  localStorage.clear();
-  location.reload();
-}
+window.onload = () => {
+  if(localStorage.getItem('m_u')) {
+    document.getElementById('mqtt-user').value = localStorage.getItem('m_u');
+    document.getElementById('mqtt-pass').value = localStorage.getItem('m_p');
+    attemptLogin();
+  }
+};
 
 function initMQTT(u, p) {
   client = new Paho.MQTT.Client("wss://" + MQTT_HOST + ":" + MQTT_PORT + "/mqtt", CLIENT_ID);
-
-  client.onMessageArrived = (message) => {
-    try {
-      const data = JSON.parse(message.payloadString);
-      if(data.relays) data.relays.forEach((state, index) => updateUI(index + 1, state));
-      if(data.hasOwnProperty('master')) updateUI(9, data.master);
-      if(data.hasOwnProperty('temp')) document.getElementById('temp-display').innerText = data.temp.toFixed(1) + "°C";
-      if(data.hasOwnProperty('humi')) document.getElementById('humi-display').innerText = data.humi.toFixed(1) + "%";
-    } catch(e) {}
+  client.onMessageArrived = (m) => {
+    const d = JSON.parse(m.payloadString);
+    if(d.relays) d.relays.forEach((s, i) => updateUI(i + 1, s));
+    if(d.hasOwnProperty('master')) updateUI(9, d.master);
+    if(d.temp) document.getElementById('temp-display').innerText = d.temp.toFixed(1) + "°C";
+    if(d.humi) document.getElementById('humi-display').innerText = d.humi.toFixed(1) + "%";
   };
-
-  client.connect({
-    useSSL: true, userName: u, password: p,
-    onSuccess: () => {
-      document.getElementById('auth-overlay').style.display = 'none';
-      document.getElementById('main-content').style.display = 'block';
-      document.getElementById('cloud-bar').innerText = "• CLOUD ONLINE";
-      client.subscribe("/printer_01/status");
-    },
-    onFailure: () => {
-      alert("Invalid Credentials");
-      logout();
-    }
-  });
+  client.connect({ useSSL: true, userName: u, password: p, onSuccess: () => {
+    document.getElementById('auth-overlay').style.display='none';
+    document.getElementById('main-content').style.display='block';
+    client.subscribe("/printer_01/status");
+  }});
 }
 
-// UI Setup & Handlers
 const container = document.getElementById('relay-container');
-const labels = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "Free 1", "Free 2", "LED", "Spare"];
-for (let i = 1; i <= 8; i++) {
+labels.forEach((l, i) => {
   container.innerHTML += `
     <div class="relay-card">
-      <small style="color: #999; font-weight:bold">${labels[i-1]}</small><br>
-      <span id="relay${i}_status" class="status-text red">OFF</span><br>
-      <button id="relay${i}_btn" class="btn on" onclick="handleRelayAction(${i})">ON</button>
+      <div class="relay-header">
+        <div id="led${i+1}" class="led"></div>
+        <small style="font-weight:bold">${l}</small>
+      </div>
+      <button id="relay${i+1}_btn" class="btn btn-on-style" onclick="handleRelayAction(${i+1})">TURN ON</button>
     </div>`;
-}
+});
 
 function handleRelayAction(id) {
-  const statusEl = document.getElementById(`relay${id}_status`);
-  const isCurrentlyOn = statusEl.innerText.includes("ON");
+  const led = document.getElementById(`led${id}`);
+  const isCurrentlyOn = led.classList.contains('led-on');
   const msg = new Paho.MQTT.Message(JSON.stringify({relay: id, state: isCurrentlyOn ? 0 : 1}));
   msg.destinationName = "/printer_01/commands";
   client.send(msg);
 }
 
 function updateUI(id, state) {
-  const statusEl = document.getElementById(`relay${id}_status`);
-  const btnEl = document.getElementById(`relay${id}_btn`);
-  if(!statusEl || !btnEl) return;
-  
+  const led = document.getElementById(`led${id}`);
+  const btn = document.getElementById(`relay${id}_btn`);
+  if(!led || !btn) return;
+
   if (state == 1) {
-    statusEl.innerHTML = "ON"; statusEl.className = "status-text green";
-    btnEl.innerHTML = "OFF"; btnEl.className = "btn off";
+    led.className = "led led-on";
+    btn.innerText = "TURN OFF";
+    btn.className = "btn btn-off-style";
   } else {
-    statusEl.innerHTML = "OFF"; statusEl.className = "status-text red";
-    btnEl.innerHTML = "ON"; btnEl.className = "btn on";
+    led.className = "led";
+    btn.innerText = "TURN ON";
+    btn.className = "btn btn-on-style";
   }
 }
 </script>
