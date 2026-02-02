@@ -151,7 +151,7 @@
       </div>
     </div>
 
-    <button id="help-btn" onclick="toggleModal('tutorial-modal')">?</button>
+    <button id="help-btn" onclick="openModal('tutorial-modal')">?</button>
 
     <div id="tutorial-modal" class="modal" style="display:none;">
         <div class="modal-content">
@@ -159,7 +159,7 @@
           <p style="font-size: 13px;"><b>1. Master Power:</b> Turn ON to enable panel.</p>
           <p style="font-size: 13px;"><b>2. Admin:</b> Login <b>Admin / 1234</b>.</p>
           <p style="font-size: 13px;"><b>3. Safety:</b> Type <b>CONFIRM</b> to power down Master.</p>
-          <button class="btn btn-on-style" onclick="toggleModal('tutorial-modal')" style="margin-top:10px;">GOT IT</button>
+          <button class="btn btn-on-style" onclick="closeModal('tutorial-modal')" style="margin-top:10px;">GOT IT</button>
         </div>
     </div>
 
@@ -172,7 +172,7 @@
         </div>
         <div class="modal-btns">
           <button class="btn btn-off-style" onclick="execPowerOff()">CONFIRM OFF</button>
-          <button class="btn btn-on-style" style="background:#ddd; color:#333; border:1px solid #ccc;" onclick="toggleModal('warn-modal')">CANCEL</button>
+          <button class="btn btn-on-style" style="background:#ddd; color:#333; border:1px solid #ccc;" onclick="closeModal('warn-modal')">CANCEL</button>
         </div>
       </div>
     </div>
@@ -242,8 +242,8 @@ function startSystem(u, p) {
 function initMQTT(u, p) {
   client = new Paho.MQTT.Client("wss://" + MQTT_HOST + ":" + MQTT_PORT + "/mqtt", CLIENT_ID);
   client.onMessageArrived = (m) => {
-    // ANTI-FLICKER: Ignore status updates for 3 seconds after user clicks a button
-    if (Date.now() - lastCmdTime < 3000) return;
+    // ANTI-FLICKER: Ignore status updates for 4 seconds after user command
+    if (Date.now() - lastCmdTime < 4000) return;
 
     const d = JSON.parse(m.payloadString);
     if(d.relays) d.relays.forEach((s, i) => updateUI(i+1, s));
@@ -277,33 +277,50 @@ function updateUI(id, s) {
 function handleAction(id) {
   if(!client || !client.isConnected()) { alert("System Offline"); return; }
 
-  // Use Internal State for accurate logic
-  if (deviceStates[id] === 1) {
+  const currentState = deviceStates[id] || 0; 
+
+  if (currentState === 1) { 
+    // If ON -> Require Confirmation to Turn OFF
     pendingId = id;
     const name = id === 9 ? 'Main System Bus' : labels[id-1];
     document.getElementById('warn-text').innerHTML = `Are you sure you want to turn off <b>${name}</b>?`;
     
+    // Setup Confirm Box for Master Only
+    const confirmBox = document.getElementById('confirm-box');
+    const confirmInput = document.getElementById('confirm-in');
+    
     if (id === 9) {
-        document.getElementById('confirm-box').style.display = 'block';
-        document.getElementById('confirm-in').value = "";
+        confirmBox.style.display = 'block';
+        confirmInput.value = ""; // Clear input
+        confirmInput.focus();
     } else {
-        document.getElementById('confirm-box').style.display = 'none';
+        confirmBox.style.display = 'none';
     }
-    toggleModal('warn-modal');
+    openModal('warn-modal');
   } else { 
+    // If OFF -> Turn ON Immediately
     sendCmd(id, 1); 
   }
 }
 
 function execPowerOff() {
-  if (pendingId === 9 && document.getElementById('confirm-in').value !== "CONFIRM") return alert("Type CONFIRM to proceed.");
+  const confirmInput = document.getElementById('confirm-in');
+  
+  // STRICT check for Master Power
+  if (pendingId === 9) {
+      if (confirmInput.value.trim() !== "CONFIRM") {
+          alert("Please type CONFIRM exactly to proceed.");
+          return;
+      }
+  }
+  
   sendCmd(pendingId, 0); 
-  toggleModal('warn-modal');
+  closeModal('warn-modal'); // Explicitly close modal
   pendingId = null;
 }
 
 function sendCmd(id, s) {
-  lastCmdTime = Date.now(); // SET TIMESTAMP FOR ANTI-FLICKER
+  lastCmdTime = Date.now(); // SET ANTI-FLICKER TIMESTAMP
 
   const time = new Date().toLocaleTimeString();
   const name = id === 9 ? 'Main Bus' : labels[id-1];
@@ -342,11 +359,8 @@ function toggleAuthMode() {
     document.getElementById('mqtt-fields').style.display = isSignUp ? 'none' : 'block'; 
 }
 
-function toggleModal(id) { 
-    const m = document.getElementById(id); 
-    if(m.style.display === 'flex') m.style.display = 'none';
-    else m.style.display = 'flex';
-}
+function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
 function logout() { localStorage.removeItem('last_u'); location.reload(); }
 
