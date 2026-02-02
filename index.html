@@ -17,7 +17,6 @@
     .auth-box { background: #2d2d2d; padding: 30px; border-radius: 16px; text-align: center; width: 320px; color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
     .auth-input { padding: 12px; border-radius: 8px; border: 1px solid #444; width: 100%; margin-bottom: 12px; box-sizing: border-box; background: #1a1a1a; color: white; }
     .auth-btn { background: var(--primary-green); color: white; padding: 14px; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
-    .auth-toggle { font-size: 11px; color: var(--primary-green); cursor: pointer; margin-top: 15px; text-decoration: underline; display: block; }
 
     header { background: #333; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
     
@@ -46,15 +45,10 @@
     .btn-on-style { background-color: #e8f5e9; color: var(--primary-green); border: 1px solid var(--primary-green); }
     .btn-off-style { background-color: #ffebee; color: var(--error-red); border: 1px solid var(--error-red); }
 
-    /* Logs & Admin */
     .log-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 5px; }
     .log-table th { text-align: left; padding: 8px; border-bottom: 2px solid #eee; color: #999; }
     .log-table td { padding: 8px; border-bottom: 1px solid #f9f9f9; }
 
-    #admin-section { border: 2px solid gold; display: none; }
-    .user-list-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #eee; font-size: 12px; }
-
-    /* Camera Feed Smaller */
     .camera-container { width: 100%; aspect-ratio: 16/9; max-height: 220px; background: #000; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
     
     /* Help Button */
@@ -82,34 +76,24 @@
 
   <div id="auth-overlay">
     <div class="auth-box">
-      <h2 id="auth-title">Mezza Login</h2>
-      <input type="text" id="app-user" class="auth-input" placeholder="Username">
-      <input type="password" id="app-pass" class="auth-input" placeholder="Password">
-      <div id="mqtt-fields">
-        <input type="text" id="mqtt-user" class="auth-input" placeholder="HiveMQ Username">
-        <input type="password" id="mqtt-pass" class="auth-input" placeholder="HiveMQ Password">
-      </div>
+      <h2 style="margin-bottom:20px;">System Login</h2>
+      <input type="text" id="mqtt-user" class="auth-input" placeholder="HiveMQ Username">
+      <input type="password" id="mqtt-pass" class="auth-input" placeholder="HiveMQ Password">
       <div style="font-size: 11px; margin-bottom:12px; text-align:left; color:#ccc;">
         <input type="checkbox" id="remember-me"> Remember Device
       </div>
       <button id="auth-btn" class="auth-btn" onclick="handleAuth()">UNLOCK SYSTEM</button>
-      <span class="auth-toggle" id="auth-toggle-text" onclick="toggleAuthMode()">Don't have an account? Sign Up</span>
     </div>
   </div>
 
   <div id="main-content" style="display: none;">
     <header>
       <h2 style="margin:0; font-size: 18px;">SMART MEZZA 3D PRINTER CONTROL</h2>
-      <div style="font-size:11px;">USER: <span id="active-user">---</span> <button onclick="logout()" style="margin-left:10px; cursor:pointer; background:none; border:1px solid #666; color:#ccc; border-radius:3px;">LOGOUT</button></div>
+      <div style="font-size:11px;">CONNECTED <button onclick="logout()" style="margin-left:10px; cursor:pointer; background:none; border:1px solid #666; color:#ccc; border-radius:3px;">LOGOUT</button></div>
     </header>
 
     <div class="main-container">
       <div class="sidebar">
-        <div id="admin-section" class="section">
-          <h3>ADMIN PANEL (USERS)</h3>
-          <div id="user-list"></div>
-        </div>
-
         <div class="section">
           <h3>MASTER POWER</h3>
           <div style="text-align:center; margin-bottom:10px; display:flex; align-items:center; justify-content:center; gap:10px;">
@@ -158,8 +142,7 @@
         <div class="modal-content">
           <h3 style="text-align:center; color:#333;">System Tutorial</h3>
           <p style="font-size: 13px;"><b>1. Master Power:</b> Turn ON to enable panel.</p>
-          <p style="font-size: 13px;"><b>2. Admin:</b> Login <b>Admin / 1234</b>.</p>
-          <p style="font-size: 13px;"><b>3. Safety:</b> Type <b>CONFIRM</b> to power down Master.</p>
+          <p style="font-size: 13px;"><b>2. Safety:</b> Type <b>CONFIRM</b> to power down Master.</p>
           <button class="btn btn-on-style" onclick="closeModal('tutorial-modal')" style="margin-top:10px;">GOT IT</button>
         </div>
     </div>
@@ -189,14 +172,13 @@
 const MQTT_HOST = "143fa294384e4a2fa42c7bfe8a7ebd1d.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884;
 const CLIENT_ID = "web_ui_" + Math.random().toString(16).substr(2, 8);
-let client = null, currentUser = null, isSignUp = false;
+let client = null;
 let deviceStates = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 };
 let pendingAction = { id: null, newState: null };
-let ignoreMqttUntil = 0; // ANTI-FLICKER TIMER
+let ignoreMqttUntil = 0; 
 
 const labels = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
-// --- HELPER: SAFE LOGGING ---
 function getDeviceName(id) {
     if (id === 9) return "Main System Bus";
     if (id >= 1 && id <= 8) return labels[id - 1];
@@ -205,58 +187,30 @@ function getDeviceName(id) {
 
 function addToLog(action, target) {
     const time = new Date().toLocaleTimeString();
-    const user = currentUser ? currentUser.name : "System"; // Safe check
-    const row = `<tr><td>${time}</td><td>${user}</td><td>${action}</td><td>${target}</td></tr>`;
+    const row = `<tr><td>${time}</td><td>User</td><td>${action}</td><td>${target}</td></tr>`;
     document.getElementById("log-body").insertAdjacentHTML("afterbegin", row);
 }
 
 // --- AUTHENTICATION ---
 function handleAuth() {
-  const u = document.getElementById("app-user").value;
-  const p = document.getElementById("app-pass").value;
   const mu = document.getElementById("mqtt-user").value;
   const mp = document.getElementById("mqtt-pass").value;
-  let db = JSON.parse(localStorage.getItem("user_db") || "[]");
 
-  if (u === "Admin" && p === "1234") {
-    currentUser = {name: "Admin", admin: true};
-    if (document.getElementById("remember-me").checked) saveSession(mu, mp, currentUser);
-    startSystem(mu, mp);
-    return;
+  if (!mu || !mp) return alert("Please enter HiveMQ credentials.");
+
+  if (document.getElementById("remember-me").checked) {
+      localStorage.setItem("m_u", mu);
+      localStorage.setItem("m_p", mp);
   }
-
-  if (isSignUp) {
-    if (db.some(x => x.name === u)) return alert("User exists!");
-    db.push({name: u, pass: p, admin: false}); 
-    localStorage.setItem("user_db", JSON.stringify(db));
-    alert("Account created! Please log in.");
-    toggleAuthMode();
-  } else {
-    let user = db.find(x => x.name === u && x.pass === p);
-    if (!user) return alert("Invalid Credentials");
-    currentUser = user;
-    if (document.getElementById("remember-me").checked) saveSession(mu, mp, user);
-    startSystem(mu, mp);
-  }
-}
-
-function saveSession(mu, mp, user) {
-  localStorage.setItem("m_u", mu); 
-  localStorage.setItem("m_p", mp);
-  localStorage.setItem("last_u", JSON.stringify(user));
-}
-
-function startSystem(u, p) {
-  document.getElementById("active-user").innerText = currentUser.name.toUpperCase() + (currentUser.admin ? " (ADMIN)" : "");
-  if(currentUser.admin) { document.getElementById("admin-section").style.display = "block"; refreshAdmin(); }
-  initMQTT(u, p);
+  
+  initMQTT(mu, mp);
 }
 
 // --- MQTT SYSTEM ---
 function initMQTT(u, p) {
   client = new Paho.MQTT.Client("wss://" + MQTT_HOST + ":" + MQTT_PORT + "/mqtt", CLIENT_ID);
   client.onMessageArrived = (m) => {
-    // ANTI-FLICKER: Ignore messages if user just clicked a button
+    // ANTI-FLICKER: Ignore messages for 6 seconds after user click
     if (Date.now() < ignoreMqttUntil) return;
 
     try {
@@ -300,20 +254,17 @@ function handleAction(id) {
   pendingAction = { id: id, newState: newState };
   const name = getDeviceName(id);
 
-  // If turning ON -> Do immediately
   if (newState === 1) {
       sendCmd(id, 1);
       return;
   }
 
-  // If turning OFF -> Ask Confirmation
+  // Turning OFF -> Confirmation
   if (id === 9) {
-      // Master Bus Special Confirmation
       document.getElementById("warn-text").innerHTML = `Type <b>CONFIRM</b> to turn off <b>${name}</b>.`;
       document.getElementById("confirm-box").style.display = "block";
       document.getElementById("confirm-in").value = ""; 
   } else {
-      // Standard Confirmation
       document.getElementById("warn-text").innerHTML = `Are you sure you want to turn OFF <b>${name}</b>?`;
       document.getElementById("confirm-box").style.display = "none";
   }
@@ -333,40 +284,17 @@ function execPowerOff() {
 }
 
 function sendCmd(id, s) {
-  ignoreMqttUntil = Date.now() + 3000; // 3-second anti-flicker
-  updateUI(id, s); // Optimistic Update
+  ignoreMqttUntil = Date.now() + 6000; 
+  updateUI(id, s);
   addToLog(s ? "ON" : "OFF", getDeviceName(id));
   
-  const payload = JSON.stringify({ relay: id, state: s, by: currentUser ? currentUser.name : "Unknown" });
+  const payload = JSON.stringify({ relay: id, state: s, by: "User" });
   client.send(new Paho.MQTT.Message(payload));
-}
-
-// --- ADMIN & UI UTILS ---
-function refreshAdmin() {
-  let db = JSON.parse(localStorage.getItem("user_db") || "[]");
-  const list = document.getElementById("user-list");
-  if (db.length === 0) { list.innerHTML = "<small style='color:#888'>No users.</small>"; return; }
-  list.innerHTML = db.map(u => `<div class="user-list-item"><span>${u.name}</span><button onclick="delAcc('${u.name}')" style="background:#f44336; color:white; border:none; padding:4px 8px; border-radius:4px;">REMOVE</button></div>`).join("");
-}
-
-function delAcc(n) { 
-    if(!confirm("Delete user " + n + "?")) return;
-    let db = JSON.parse(localStorage.getItem("user_db")); 
-    localStorage.setItem("user_db", JSON.stringify(db.filter(x => x.name !== n))); 
-    refreshAdmin(); 
-}
-
-function toggleAuthMode() { 
-    isSignUp = !isSignUp; 
-    document.getElementById("auth-title").innerText = isSignUp ? "Create Account" : "Mezza Login";
-    document.getElementById("auth-btn").innerText = isSignUp ? "SIGN UP" : "UNLOCK SYSTEM";
-    document.getElementById("auth-toggle-text").innerText = isSignUp ? "Back to Login" : "Don't have an account? Sign Up";
-    document.getElementById("mqtt-fields").style.display = isSignUp ? "none" : "block"; 
 }
 
 function openModal(id) { document.getElementById(id).style.display = "flex"; }
 function closeModal(id) { document.getElementById(id).style.display = "none"; }
-function logout() { localStorage.removeItem("last_u"); location.reload(); }
+function logout() { localStorage.removeItem("m_u"); localStorage.removeItem("m_p"); location.reload(); }
 
 setInterval(() => {
   const n = new Date();
@@ -375,8 +303,9 @@ setInterval(() => {
 }, 1000);
 
 window.onload = () => {
-  let last = localStorage.getItem("last_u");
-  if(last) { currentUser = JSON.parse(last); startSystem(localStorage.getItem("m_u"), localStorage.getItem("m_p")); }
+  const mu = localStorage.getItem("m_u");
+  const mp = localStorage.getItem("m_p");
+  if(mu && mp) { initMQTT(mu, mp); }
 };
 
 const cont = document.getElementById("relay-container");
