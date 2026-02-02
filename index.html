@@ -191,8 +191,9 @@ const CLIENT_ID = "web_ui_" + Math.random().toString(16).substr(2, 8);
 let client = null, currentUser = null, isSignUp = false, pendingId = null;
 const labels = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
-// INTERNAL STATE TRACKING
+// INTERNAL STATE & ANTI-FLICKER
 let deviceStates = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 };
+let lastCmdTime = 0; // Timestamp of last user command
 
 // --- AUTHENTICATION ---
 function handleAuth() {
@@ -241,6 +242,9 @@ function startSystem(u, p) {
 function initMQTT(u, p) {
   client = new Paho.MQTT.Client("wss://" + MQTT_HOST + ":" + MQTT_PORT + "/mqtt", CLIENT_ID);
   client.onMessageArrived = (m) => {
+    // ANTI-FLICKER: Ignore status updates for 3 seconds after user clicks a button
+    if (Date.now() - lastCmdTime < 3000) return;
+
     const d = JSON.parse(m.payloadString);
     if(d.relays) d.relays.forEach((s, i) => updateUI(i+1, s));
     if(d.hasOwnProperty('master')) updateUI(9, d.master);
@@ -259,7 +263,7 @@ function updateUI(id, s) {
   if(!led || !btn) return;
   
   s = Number(s);
-  deviceStates[id] = s; // Sync internal state
+  deviceStates[id] = s;
 
   if (s === 1) {
     led.className = "led led-on"; btn.innerText = "TURN OFF"; btn.className = "btn btn-off-style";
@@ -273,7 +277,7 @@ function updateUI(id, s) {
 function handleAction(id) {
   if(!client || !client.isConnected()) { alert("System Offline"); return; }
 
-  // Check state using internal variable, NOT the DOM
+  // Use Internal State for accurate logic
   if (deviceStates[id] === 1) {
     pendingId = id;
     const name = id === 9 ? 'Main System Bus' : labels[id-1];
@@ -285,20 +289,22 @@ function handleAction(id) {
     } else {
         document.getElementById('confirm-box').style.display = 'none';
     }
-    toggleModal('warn-modal'); // ONLY show modal, do NOT send command yet
+    toggleModal('warn-modal');
   } else { 
-    sendCmd(id, 1); // If turning ON, do it immediately
+    sendCmd(id, 1); 
   }
 }
 
 function execPowerOff() {
   if (pendingId === 9 && document.getElementById('confirm-in').value !== "CONFIRM") return alert("Type CONFIRM to proceed.");
   sendCmd(pendingId, 0); 
-  toggleModal('warn-modal'); // Close modal
+  toggleModal('warn-modal');
   pendingId = null;
 }
 
 function sendCmd(id, s) {
+  lastCmdTime = Date.now(); // SET TIMESTAMP FOR ANTI-FLICKER
+
   const time = new Date().toLocaleTimeString();
   const name = id === 9 ? 'Main Bus' : labels[id-1];
   const action = s ? 'ON' : 'OFF';
@@ -357,11 +363,7 @@ window.onload = () => {
 
 const cont = document.getElementById('relay-container');
 labels.forEach((l, i) => {
-  cont.innerHTML += `
-    <div class="relay-card">
-      <div class="relay-header"><div id="led${i+1}" class="led"></div><small><b>${l}</b></small></div>
-      <button id="relay${i+1}_btn" class="btn btn-on-style" onclick="handleAction(${i+1})">ON</button>
-    </div>`;
+  cont.innerHTML += `<div class="relay-card"><div class="relay-header"><div id="led${i+1}" class="led"></div><small><b>${l}</b></small></div><button id="relay${i+1}_btn" class="btn btn-on-style" onclick="handleAction(${i+1})">ON</button></div>`;
 });
 </script>
 </body>
