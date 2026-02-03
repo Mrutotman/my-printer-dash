@@ -375,17 +375,69 @@ function executeOff() {
 }
 
 function sendCommand(id, state) {
-  lockTimer = Date.now() + 6000; // 6s Anti-Flicker
-  updateState(id, state); // Optimistic Update
+  lockTimer = Date.now() + 2000; // Reduced to 2s for better responsiveness
+  updateState(id, state); // Optimistic Update for local UI
   
-  // 1. Send Command to ESP32
-  const payload = JSON.stringify({ relay: id, state: state, by: myDeviceName });
-  const message = new Paho.MQTT.Message(payload);
-  message.destinationName = "/printer_01/commands";
-  client.send(message);
+  const payloadObj = { relay: id, state: state, by: myDeviceName };
+  const payloadStr = JSON.stringify(payloadObj);
 
-  // 2. Broadcast Log to All Devices
+  // 1. Send Command to ESP32
+  const msgCommand = new Paho.MQTT.Message(payloadStr);
+  msgCommand.destinationName = "/printer_01/commands";
+  client.send(msgCommand);
+
+  // 2. Broadcast to other Web Dashboards for UI Sync
+  const msgSync = new Paho.MQTT.Message(payloadStr);
+  msgSync.destinationName = "/printer_01/sync"; 
+  client.send(msgSync);
+
+  // 3. Broadcast Log
   broadcastLog(state ? "ON" : "OFF", getDeviceName(id));
+}
+
+// Update your connectSystem success callback to subscribe to the sync topic:
+// Inside connectSystem() -> onSuccess:
+client.subscribe("/printer_01/status");
+client.subscribe("/printer_01/logs");
+client.subscribe("/printer_01/sync"); // Add this line
+
+// Update your onMessage function to handle the sync topic:
+function onMessage(m) {
+  const topic = m.destinationName;
+  const payload = m.payloadString;
+
+  if (topic === "/printer_01/logs") {
+    try {
+      const logData = JSON.parse(payload);
+      displayLog(logData);
+    } catch(e) { console.error("Log Error", e); }
+    return;
+  }
+
+  // Handle Sync between devices
+  if (topic === "/printer_01/sync") {
+    try {
+      const s = JSON.parse(payload);
+      if(s.by !== myDeviceName) { // Only update if command came from another device
+        updateState(s.relay, s.state);
+      }
+    } catch(e) { console.error("Sync Error", e); }
+    return;
+  }
+
+  if (Date.now() < lockTimer) return;
+
+  try {
+    const d = JSON.parse(payload);
+    if(d.relays) d.relays.forEach((s, i) => updateState(i+1, s));
+    if(d.master !== undefined) updateState(9, d.master);
+    if(d.v) ['v','a','w','wh'].forEach(k => {
+        const el = document.getElementById(`val-${k}`);
+        if(el) el.innerText = d[k];
+    });
+    if(d.temp) document.getElementById("val-temp").innerText = d.temp;
+    if(d.humi) document.getElementById("val-humi").innerText = d.humi;
+  } catch(e) { console.error(e); }
 }
 
 // ================= HELPERS =================
