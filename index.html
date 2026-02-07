@@ -271,8 +271,13 @@ function updateCameraSource(baseUrl) {
     CURRENT_NGROK_URL = baseUrl;
     const streamUrl = baseUrl + "/stream";
     console.log("Updating Stream to: " + streamUrl);
-    document.getElementById("cam-stream").src = streamUrl;
-    document.getElementById("cam-status-text").innerText = "CONNECTING...";
+    
+    // UPDATE THIS PART:
+    const cam = document.getElementById("cam-stream");
+    cam.src = streamUrl;
+    
+    // Hide the "Waiting" message immediately (The iframe handles the rest)
+    document.getElementById("cam-msg").style.display = 'none';
 }
 
 // ================= LED CONTROL (SYNCED) =================
