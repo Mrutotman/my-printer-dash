@@ -498,4 +498,63 @@ function handleClick(id) {
     return;
   }
 
-  const msg = document.getElementById("
+  const msg = document.getElementById("confirm-msg");
+  const input = document.getElementById("confirm-input");
+
+  if(id === 9) {
+    msg.innerHTML = `Type <b>CONFIRM</b> to kill <b>${name}</b>`;
+    input.style.display = "block";
+    input.value = "";
+  } else {
+    msg.innerHTML = `Turn off <b>${name}</b>?`;
+    input.style.display = "none";
+  }
+  
+  openModal("confirm-modal");
+}
+
+function executeOff() {
+  if(pendingId === 9) {
+    const txt = document.getElementById("confirm-input").value;
+    if(txt !== "CONFIRM") return alert("Please type CONFIRM");
+  }
+  
+  sendCommand(pendingId, pendingState);
+  closeModal("confirm-modal");
+}
+
+function sendCommand(id, state) {
+  lockTimer = Date.now() + 2000; 
+  updateState(id, state); 
+  
+  const payloadObj = { relay: id, state: state, by: myDeviceName };
+  const payloadStr = JSON.stringify(payloadObj);
+
+  const msgCommand = new Paho.MQTT.Message(payloadStr);
+  msgCommand.destinationName = "/printer_01/commands";
+  client.send(msgCommand);
+
+  const msgSync = new Paho.MQTT.Message(payloadStr);
+  msgSync.destinationName = "/printer_01/sync"; 
+  client.send(msgSync);
+
+  broadcastLog(state ? "ON" : "OFF", getDeviceName(id));
+}
+
+function openModal(id) { document.getElementById(id).style.display = "flex"; }
+function closeModal(id) { 
+  if(!id) id = "confirm-modal"; 
+  document.getElementById(id).style.display = "none"; 
+  pendingId = null;
+}
+function doLogout() {
+  localStorage.removeItem("mq_u");
+  localStorage.removeItem("mq_p");
+  location.reload();
+}
+setInterval(() => {
+  document.getElementById("clock").innerText = new Date().toLocaleTimeString();
+}, 1000);
+</script>
+</body>
+</html>
