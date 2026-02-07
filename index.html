@@ -109,18 +109,14 @@
         <div class="card">
           <h3>LIVE FEED</h3>
           <div class="camera-box">
-             <img id="cam-stream" src="" 
+            <img id="cam-stream" src="" 
                  style="width:100%; height:100%; object-fit:contain; transform: rotate(180deg); display:none;"
                  onload="this.style.display='block'; document.getElementById('cam-msg').style.display='none';"
                  onerror="handleCamError()">
             
-            <div id="cam-msg" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#555; text-align:center; padding:20px;">
-                <span id="cam-status-text" style="font-size:16px; font-weight:bold; margin-bottom:10px;">CONNECTING...</span>
-                
-                <button id="cam-fallback-btn" onclick="openCamPopup()" style="display:none; background:#4CAF50; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">
-                  OPEN CAMERA (POPUP)
-                </button>
-                <span style="font-size:10px; margin-top:5px;">(GitHub blocks HTTP video. Use popup.)</span>
+            <div id="cam-msg" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#555;">
+                <span id="cam-status-text" style="font-size:16px; font-weight:bold;">CONNECTING...</span>
+                <span style="font-size:10px;">Check Ngrok Terminal</span>
             </div>
           </div>
         </div>
@@ -188,9 +184,8 @@ const CLIENT_ID = "web_" + Math.random().toString(16).substr(2, 8);
 const LABELS = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
 // --- CAMERA CONFIGURATION ---
-// IMPORTANT: GitHub is HTTPS, but your Cam is HTTP. 
-// Browsers will block the view inside the page. You MUST use the popup button if on GitHub.
-const PUBLIC_CAM_URL = "http://Yhttp://192.168.1.14"; // <--- UPDATE THIS
+// PASTE YOUR NGROK URL HERE (Must include https:// and /stream)
+const PUBLIC_CAM_URL = "https://unasked-overproportionately-johnathan.ngrok-free.dev/"; 
 
 let client = null;
 let myDeviceName = "Unknown";
@@ -203,8 +198,8 @@ let lockTimer = 0;
 window.onload = () => {
   renderRelays();
   
-  // Attempt to load camera (Will likely fail on GitHub/Remote)
-  console.log("Loading Camera URL: " + PUBLIC_CAM_URL);
+  // Load the secure Ngrok stream
+  console.log("Loading Secure Stream: " + PUBLIC_CAM_URL);
   document.getElementById("cam-stream").src = PUBLIC_CAM_URL;
 
   const u = localStorage.getItem("mq_u");
@@ -220,18 +215,10 @@ window.onload = () => {
 };
 
 function handleCamError() {
-  // If the image fails to load (Mixed Content block or Offline)
   document.getElementById("cam-stream").style.display = 'none';
   const msgBox = document.getElementById("cam-msg");
   msgBox.style.display = 'flex';
-  
-  // Show the fallback button
-  document.getElementById("cam-status-text").innerText = "STREAM BLOCKED / OFFLINE";
-  document.getElementById("cam-fallback-btn").style.display = "inline-block";
-}
-
-function openCamPopup() {
-  window.open(PUBLIC_CAM_URL, '_blank', 'width=640,height=480');
+  document.getElementById("cam-status-text").innerText = "STREAM OFFLINE";
 }
 
 function renderRelays() {
