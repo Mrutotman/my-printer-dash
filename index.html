@@ -41,6 +41,17 @@
     .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; }
     .pzem-val { font-size: 18px; font-weight: bold; }
     .pzem-label { font-size: 10px; color: #888; }
+
+    /* --- NEW LED SLIDER STYLES --- */
+    .slider-container {
+        position: absolute; bottom: 10px; left: 10px; right: 10px;
+        background: rgba(0,0,0,0.6); border-radius: 20px; padding: 5px 15px;
+        display: flex; align-items: center; gap: 10px; backdrop-filter: blur(4px);
+    }
+    .slider-container span { color: white; font-size: 12px; font-weight: bold; }
+    input[type=range] {
+        width: 100%; cursor: pointer; accent-color: var(--primary);
+    }
     
     .log-list { font-size: 11px; height: 150px; overflow-y: auto; border-top: 1px solid #eee; }
     .log-table { width: 100%; border-collapse: collapse; }
@@ -109,7 +120,7 @@
         <div class="card">
           <h3>LIVE FEED</h3>
           <div class="camera-box">
-            <img id="cam-stream" src="" 
+             <img id="cam-stream" src="" 
                  style="width:100%; height:100%; object-fit:contain; transform: rotate(180deg); display:none;"
                  onload="this.style.display='block'; document.getElementById('cam-msg').style.display='none';"
                  onerror="handleCamError()">
@@ -117,6 +128,12 @@
             <div id="cam-msg" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#555;">
                 <span id="cam-status-text" style="font-size:16px; font-weight:bold;">CONNECTING...</span>
                 <span style="font-size:10px;">Check Ngrok Terminal</span>
+            </div>
+
+            <div class="slider-container">
+                <span>💡</span>
+                <input type="range" min="0" max="255" value="0" id="led-slider" oninput="updateLed(this.value)">
+                <span id="led-val">0%</span>
             </div>
           </div>
         </div>
@@ -184,8 +201,9 @@ const CLIENT_ID = "web_" + Math.random().toString(16).substr(2, 8);
 const LABELS = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
 // --- CAMERA CONFIGURATION ---
-// PASTE YOUR NGROK URL HERE (Must include https:// and /stream)
-const PUBLIC_CAM_URL = "https://unasked-overproportionately-johnathan.ngrok-free.dev/"; 
+// PASTE YOUR NGROK BASE URL HERE (Do NOT include /stream at the end)
+// Example: "https://your-name.ngrok-free.dev"
+const NGROK_BASE_URL = "https://unasked-overproportionately-johnathan.ngrok-free.dev"; 
 
 let client = null;
 let myDeviceName = "Unknown";
@@ -198,9 +216,10 @@ let lockTimer = 0;
 window.onload = () => {
   renderRelays();
   
-  // Load the secure Ngrok stream
-  console.log("Loading Secure Stream: " + PUBLIC_CAM_URL);
-  document.getElementById("cam-stream").src = PUBLIC_CAM_URL;
+  // Construct URL for Video Stream
+  const streamUrl = NGROK_BASE_URL + "/stream";
+  console.log("Loading Secure Stream: " + streamUrl);
+  document.getElementById("cam-stream").src = streamUrl;
 
   const u = localStorage.getItem("mq_u");
   const p = localStorage.getItem("mq_p");
@@ -213,6 +232,19 @@ window.onload = () => {
     connectSystem();
   }
 };
+
+// ================= LED CONTROL (NEW) =================
+function updateLed(val) {
+    // 1. Update UI Text Percentage
+    const percent = Math.round((val / 255) * 100);
+    document.getElementById("led-val").innerText = percent + "%";
+
+    // 2. Send Command to ESP32 via Ngrok
+    const ledUrl = NGROK_BASE_URL + "/led?val=" + val;
+    
+    // Send without waiting for response (prevents UI lag)
+    fetch(ledUrl).catch(e => console.log("LED Error:", e));
+}
 
 function handleCamError() {
   document.getElementById("cam-stream").style.display = 'none';
