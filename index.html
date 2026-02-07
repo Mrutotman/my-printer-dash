@@ -42,7 +42,7 @@
     .pzem-val { font-size: 18px; font-weight: bold; }
     .pzem-label { font-size: 10px; color: #888; }
 
-    /* --- NEW LED SLIDER STYLES --- */
+    /* LED Slider Styles */
     .slider-container {
         position: absolute; bottom: 10px; left: 10px; right: 10px;
         background: rgba(0,0,0,0.6); border-radius: 20px; padding: 5px 15px;
@@ -200,9 +200,7 @@ const MQTT_PORT = 8884;
 const CLIENT_ID = "web_" + Math.random().toString(16).substr(2, 8);
 const LABELS = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
-// --- CAMERA CONFIGURATION ---
 // PASTE YOUR NGROK BASE URL HERE (Do NOT include /stream at the end)
-// Example: "https://your-name.ngrok-free.dev"
 const NGROK_BASE_URL = "https://unasked-overproportionately-johnathan.ngrok-free.dev"; 
 
 let client = null;
@@ -216,7 +214,10 @@ let lockTimer = 0;
 window.onload = () => {
   renderRelays();
   
-  // Construct URL for Video Stream
+  // 1. Load Stored Logs from Browser Memory
+  loadStoredLogs();
+
+  // 2. Load Video Stream
   const streamUrl = NGROK_BASE_URL + "/stream";
   console.log("Loading Secure Stream: " + streamUrl);
   document.getElementById("cam-stream").src = streamUrl;
@@ -233,17 +234,25 @@ window.onload = () => {
   }
 };
 
-// ================= LED CONTROL (NEW) =================
+// ================= LED CONTROL (SYNCED) =================
 function updateLed(val) {
-    // 1. Update UI Text Percentage
+    // 1. Update UI Text
     const percent = Math.round((val / 255) * 100);
     document.getElementById("led-val").innerText = percent + "%";
 
-    // 2. Send Command to ESP32 via Ngrok
+    // 2. Send HTTP Command to ESP32 (For fast hardware response)
     const ledUrl = NGROK_BASE_URL + "/led?val=" + val;
-    
-    // Send without waiting for response (prevents UI lag)
     fetch(ledUrl).catch(e => console.log("LED Error:", e));
+
+    // 3. Send MQTT Message (To sync other screens)
+    // We use RETAINED=true so new devices get the value immediately
+    if(client && client.isConnected()) {
+        const payload = JSON.stringify({val: val, by: myDeviceName});
+        const msg = new Paho.MQTT.Message(payload);
+        msg.destinationName = "/printer_01/led";
+        msg.retained = true; // IMPORTANT: Saves value on broker
+        client.send(msg);
+    }
 }
 
 function handleCamError() {
@@ -266,7 +275,28 @@ function renderRelays() {
   });
 }
 
-// ================= LOG SYSTEM (SYNCED VIA MQTT) =================
+// ================= LOG SYSTEM (PERSISTENT) =================
+function loadStoredLogs() {
+    const stored = localStorage.getItem("activity_logs");
+    if(stored) {
+        try {
+            const logs = JSON.parse(stored);
+            logs.forEach(log => appendLogRow(log));
+        } catch(e) { console.error("Log Load Error", e); }
+    }
+}
+
+function saveLog(logData) {
+    // Get existing logs
+    let logs = JSON.parse(localStorage.getItem("activity_logs") || "[]");
+    // Add new log to top
+    logs.unshift(logData);
+    // Keep only last 50
+    if(logs.length > 50) logs = logs.slice(0, 50);
+    // Save back to storage
+    localStorage.setItem("activity_logs", JSON.stringify(logs));
+}
+
 function broadcastLog(action, target) {
   const logData = {
     time: new Date().toLocaleTimeString(),
@@ -281,10 +311,18 @@ function broadcastLog(action, target) {
 }
 
 function displayLog(data) {
-  const tbody = document.getElementById("log-body");
-  const row = `<tr><td>${data.time}</td><td style="color:#666; font-weight:bold;">${data.by}</td><td>${data.action}</td><td>${data.target}</td></tr>`;
-  tbody.insertAdjacentHTML("afterbegin", row);
-  if (tbody.rows.length > 50) tbody.deleteRow(50);
+  // 1. Render to screen
+  appendLogRow(data);
+  // 2. Save to browser memory
+  saveLog(data);
+}
+
+function appendLogRow(data) {
+    const tbody = document.getElementById("log-body");
+    const row = `<tr><td>${data.time}</td><td style="color:#666; font-weight:bold;">${data.by}</td><td>${data.action}</td><td>${data.target}</td></tr>`;
+    tbody.insertAdjacentHTML("afterbegin", row);
+    // Visual Trim (keep DOM light)
+    if (tbody.rows.length > 50) tbody.deleteRow(50);
 }
 
 // ================= MQTT CONNECTION =================
@@ -316,6 +354,7 @@ function connectSystem() {
       client.subscribe("/printer_01/status");
       client.subscribe("/printer_01/logs"); 
       client.subscribe("/printer_01/sync");
+      client.subscribe("/printer_01/led"); // SUBSCRIBE TO LED
     },
     onFailure: (e) => alert("Connection Failed: " + e.errorMessage)
   });
@@ -325,6 +364,7 @@ function onMessage(m) {
   const topic = m.destinationName;
   const payload = m.payloadString;
 
+  // HANDLE LOGS
   if (topic === "/printer_01/logs") {
     try {
       const logData = JSON.parse(payload);
@@ -333,6 +373,21 @@ function onMessage(m) {
     return;
   }
 
+  // HANDLE LED SYNC
+  if (topic === "/printer_01/led") {
+      try {
+          const d = JSON.parse(payload);
+          // Only update if I didn't send it (avoids jitter while sliding)
+          if(d.by !== myDeviceName) {
+              document.getElementById("led-slider").value = d.val;
+              const percent = Math.round((d.val / 255) * 100);
+              document.getElementById("led-val").innerText = percent + "%";
+          }
+      } catch(e) { console.error("LED Sync Error", e); }
+      return;
+  }
+
+  // HANDLE RELAY SYNC
   if (topic === "/printer_01/sync") {
     try {
       const s = JSON.parse(payload);
