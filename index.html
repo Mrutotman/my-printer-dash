@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Smart Mezza 3D Printer Control</title>
+  <title>Smart Mezza Control</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
   <style>
     /* --- CSS STYLES --- */
@@ -42,16 +42,14 @@
     .pzem-val { font-size: 18px; font-weight: bold; }
     .pzem-label { font-size: 10px; color: #888; }
 
-    /* LED Slider Styles */
+    /* Slider UI */
     .slider-container {
         position: absolute; bottom: 10px; left: 10px; right: 10px;
         background: rgba(0,0,0,0.6); border-radius: 20px; padding: 5px 15px;
         display: flex; align-items: center; gap: 10px; backdrop-filter: blur(4px);
     }
     .slider-container span { color: white; font-size: 12px; font-weight: bold; }
-    input[type=range] {
-        width: 100%; cursor: pointer; accent-color: var(--primary);
-    }
+    input[type=range] { width: 100%; cursor: pointer; accent-color: var(--primary); }
     
     .log-list { font-size: 11px; height: 150px; overflow-y: auto; border-top: 1px solid #eee; }
     .log-table { width: 100%; border-collapse: collapse; }
@@ -62,6 +60,9 @@
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center; }
     .modal-box { background: white; padding: 25px; border-radius: 10px; width: 300px; text-align: center; }
     
+    /* Config Button */
+    #config-btn { position: fixed; bottom: 140px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #555; color: white; font-weight: bold; font-size: 20px; border: 1px solid #777; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; }
+
     #help-btn { position: fixed; bottom: 80px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 20px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; transition: 0.3s; }
     #help-btn:active { transform: scale(0.9); }
 
@@ -71,6 +72,7 @@
       .container { flex-direction: column; }
       .sidebar, .main-content { width: 100%; }
       #help-btn { bottom: 90px; left: 15px; } 
+      #config-btn { bottom: 150px; left: 15px; }
     }
   </style>
 </head>
@@ -126,8 +128,8 @@
                  onerror="handleCamError()">
             
             <div id="cam-msg" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#555;">
-                <span id="cam-status-text" style="font-size:16px; font-weight:bold;">CONNECTING...</span>
-                <span style="font-size:10px;">Check Ngrok Terminal</span>
+                <span id="cam-status-text" style="font-size:16px; font-weight:bold;">WAITING FOR URL...</span>
+                <span style="font-size:10px;">Click ⚙️ to set Ngrok Link</span>
             </div>
 
             <div class="slider-container">
@@ -162,6 +164,7 @@
       </div>
     </div>
 
+    <button id="config-btn" onclick="openModal('config-modal')">⚙️</button>
     <button id="help-btn" onclick="openModal('tutorial-modal')">?</button>
 
     <footer>
@@ -171,12 +174,23 @@
     </footer>
   </div>
 
+  <div id="config-modal" class="modal-overlay">
+    <div class="modal-box">
+      <h3 style="color:#333;">CAMERA SETTINGS</h3>
+      <p style="font-size:12px; color:#666;">Paste your new Ngrok link here:</p>
+      <input type="text" id="ngrok-input" class="input-field" placeholder="https://xxxx.ngrok-free.app">
+      <div style="display:flex; gap:10px; margin-top:15px;">
+        <button class="btn btn-on" onclick="saveConfig()">SAVE & SYNC</button>
+        <button class="btn btn-off" style="background:#ddd; color:#333; border:1px solid #ccc;" onclick="closeModal('config-modal')">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
   <div id="tutorial-modal" class="modal-overlay">
     <div class="modal-box">
       <h3 style="color:#333;">SYSTEM GUIDE</h3>
-      <p style="font-size:13px; text-align:left;"><b>1. Master Power:</b><br>Turns ON the main bus. Must be ON to control printers.</p>
+      <p style="font-size:13px; text-align:left;"><b>1. Update Camera:</b><br>Click ⚙️ button and paste new Ngrok link.</p>
       <p style="font-size:13px; text-align:left;"><b>2. Control Panel:</b><br>Toggle individual devices. Locked if Master is OFF.</p>
-      <p style="font-size:13px; text-align:left;"><b>3. Safety:</b><br>Turning OFF requires typing "CONFIRM".</p>
       <button class="btn btn-on" onclick="closeModal('tutorial-modal')">GOT IT</button>
     </div>
   </div>
@@ -200,8 +214,8 @@ const MQTT_PORT = 8884;
 const CLIENT_ID = "web_" + Math.random().toString(16).substr(2, 8);
 const LABELS = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
-// PASTE YOUR NGROK BASE URL HERE (Do NOT include /stream at the end)
-const NGROK_BASE_URL = "https://unasked-overproportionately-johnathan.ngrok-free.dev/stream"; 
+// WE NO LONGER HARDCODE THE URL HERE!
+let CURRENT_NGROK_URL = ""; 
 
 let client = null;
 let myDeviceName = "Unknown";
@@ -213,14 +227,7 @@ let lockTimer = 0;
 // ================= INITIALIZATION =================
 window.onload = () => {
   renderRelays();
-  
-  // 1. Load Stored Logs from Browser Memory
-  loadStoredLogs();
-
-  // 2. Load Video Stream
-  const streamUrl = NGROK_BASE_URL + "/stream";
-  console.log("Loading Secure Stream: " + streamUrl);
-  document.getElementById("cam-stream").src = streamUrl;
+  loadStoredLogs(); 
 
   const u = localStorage.getItem("mq_u");
   const p = localStorage.getItem("mq_p");
@@ -234,23 +241,56 @@ window.onload = () => {
   }
 };
 
+// ================= DYNAMIC CONFIG SYSTEM =================
+function saveConfig() {
+    let newUrl = document.getElementById("ngrok-input").value.trim();
+    
+    // Remove trailing slash if present
+    if(newUrl.endsWith("/")) newUrl = newUrl.slice(0, -1);
+    
+    if(!newUrl.startsWith("https://")) {
+        alert("Link must start with https://");
+        return;
+    }
+
+    // Publish to HiveMQ (Retained) so it saves forever
+    if(client && client.isConnected()) {
+        const msg = new Paho.MQTT.Message(newUrl);
+        msg.destinationName = "/printer_01/config/camera";
+        msg.retained = true; // SAVE THIS ON SERVER
+        client.send(msg);
+        alert("Link Saved! All devices will update.");
+        closeModal('config-modal');
+    } else {
+        alert("Not connected to System. Login first.");
+    }
+}
+
+function updateCameraSource(baseUrl) {
+    if(!baseUrl) return;
+    CURRENT_NGROK_URL = baseUrl;
+    const streamUrl = baseUrl + "/stream";
+    console.log("Updating Stream to: " + streamUrl);
+    document.getElementById("cam-stream").src = streamUrl;
+    document.getElementById("cam-status-text").innerText = "CONNECTING...";
+}
+
 // ================= LED CONTROL (SYNCED) =================
 function updateLed(val) {
-    // 1. Update UI Text
     const percent = Math.round((val / 255) * 100);
     document.getElementById("led-val").innerText = percent + "%";
 
-    // 2. Send HTTP Command to ESP32 (For fast hardware response)
-    const ledUrl = NGROK_BASE_URL + "/led?val=" + val;
-    fetch(ledUrl).catch(e => console.log("LED Error:", e));
+    // Only send HTTP if we have a URL
+    if(CURRENT_NGROK_URL) {
+        const ledUrl = CURRENT_NGROK_URL + "/led?val=" + val;
+        fetch(ledUrl).catch(e => console.log("LED Error (Offline?)"));
+    }
 
-    // 3. Send MQTT Message (To sync other screens)
-    // We use RETAINED=true so new devices get the value immediately
     if(client && client.isConnected()) {
         const payload = JSON.stringify({val: val, by: myDeviceName});
         const msg = new Paho.MQTT.Message(payload);
         msg.destinationName = "/printer_01/led";
-        msg.retained = true; // IMPORTANT: Saves value on broker
+        msg.retained = true; 
         client.send(msg);
     }
 }
@@ -287,13 +327,9 @@ function loadStoredLogs() {
 }
 
 function saveLog(logData) {
-    // Get existing logs
     let logs = JSON.parse(localStorage.getItem("activity_logs") || "[]");
-    // Add new log to top
     logs.unshift(logData);
-    // Keep only last 50
     if(logs.length > 50) logs = logs.slice(0, 50);
-    // Save back to storage
     localStorage.setItem("activity_logs", JSON.stringify(logs));
 }
 
@@ -311,9 +347,7 @@ function broadcastLog(action, target) {
 }
 
 function displayLog(data) {
-  // 1. Render to screen
   appendLogRow(data);
-  // 2. Save to browser memory
   saveLog(data);
 }
 
@@ -321,7 +355,6 @@ function appendLogRow(data) {
     const tbody = document.getElementById("log-body");
     const row = `<tr><td>${data.time}</td><td style="color:#666; font-weight:bold;">${data.by}</td><td>${data.action}</td><td>${data.target}</td></tr>`;
     tbody.insertAdjacentHTML("afterbegin", row);
-    // Visual Trim (keep DOM light)
     if (tbody.rows.length > 50) tbody.deleteRow(50);
 }
 
@@ -354,7 +387,8 @@ function connectSystem() {
       client.subscribe("/printer_01/status");
       client.subscribe("/printer_01/logs"); 
       client.subscribe("/printer_01/sync");
-      client.subscribe("/printer_01/led"); // SUBSCRIBE TO LED
+      client.subscribe("/printer_01/led");
+      client.subscribe("/printer_01/config/camera"); // NEW: Listen for URL updates
     },
     onFailure: (e) => alert("Connection Failed: " + e.errorMessage)
   });
@@ -364,37 +398,34 @@ function onMessage(m) {
   const topic = m.destinationName;
   const payload = m.payloadString;
 
-  // HANDLE LOGS
+  // HANDLE DYNAMIC CAMERA URL
+  if (topic === "/printer_01/config/camera") {
+      updateCameraSource(payload);
+      return;
+  }
+
   if (topic === "/printer_01/logs") {
-    try {
-      const logData = JSON.parse(payload);
-      displayLog(logData);
-    } catch(e) { console.error("Log Error", e); }
+    try { displayLog(JSON.parse(payload)); } catch(e) {}
     return;
   }
 
-  // HANDLE LED SYNC
   if (topic === "/printer_01/led") {
       try {
           const d = JSON.parse(payload);
-          // Only update if I didn't send it (avoids jitter while sliding)
           if(d.by !== myDeviceName) {
               document.getElementById("led-slider").value = d.val;
               const percent = Math.round((d.val / 255) * 100);
               document.getElementById("led-val").innerText = percent + "%";
           }
-      } catch(e) { console.error("LED Sync Error", e); }
+      } catch(e) {}
       return;
   }
 
-  // HANDLE RELAY SYNC
   if (topic === "/printer_01/sync") {
     try {
       const s = JSON.parse(payload);
-      if(s.by !== myDeviceName) { 
-        updateState(s.relay, s.state);
-      }
-    } catch(e) { console.error("Sync Error", e); }
+      if(s.by !== myDeviceName) updateState(s.relay, s.state);
+    } catch(e) {}
     return;
   }
 
@@ -467,67 +498,4 @@ function handleClick(id) {
     return;
   }
 
-  const msg = document.getElementById("confirm-msg");
-  const input = document.getElementById("confirm-input");
-
-  if(id === 9) {
-    msg.innerHTML = `Type <b>CONFIRM</b> to kill <b>${name}</b>`;
-    input.style.display = "block";
-    input.value = "";
-  } else {
-    msg.innerHTML = `Turn off <b>${name}</b>?`;
-    input.style.display = "none";
-  }
-  
-  openModal("confirm-modal");
-}
-
-function executeOff() {
-  if(pendingId === 9) {
-    const txt = document.getElementById("confirm-input").value;
-    if(txt !== "CONFIRM") return alert("Please type CONFIRM");
-  }
-  
-  sendCommand(pendingId, pendingState);
-  closeModal("confirm-modal");
-}
-
-function sendCommand(id, state) {
-  lockTimer = Date.now() + 2000; 
-  updateState(id, state); 
-  
-  const payloadObj = { relay: id, state: state, by: myDeviceName };
-  const payloadStr = JSON.stringify(payloadObj);
-
-  const msgCommand = new Paho.MQTT.Message(payloadStr);
-  msgCommand.destinationName = "/printer_01/commands";
-  client.send(msgCommand);
-
-  const msgSync = new Paho.MQTT.Message(payloadStr);
-  msgSync.destinationName = "/printer_01/sync"; 
-  client.send(msgSync);
-
-  broadcastLog(state ? "ON" : "OFF", getDeviceName(id));
-}
-
-// ================= HELPERS =================
-function openModal(id) { document.getElementById(id).style.display = "flex"; }
-function closeModal(id) { 
-  if(!id) id = "confirm-modal"; 
-  document.getElementById(id).style.display = "none"; 
-  pendingId = null;
-}
-
-function doLogout() {
-  localStorage.removeItem("mq_u");
-  localStorage.removeItem("mq_p");
-  location.reload();
-}
-
-setInterval(() => {
-  document.getElementById("clock").innerText = new Date().toLocaleTimeString();
-}, 1000);
-
-</script>
-</body>
-</html>
+  const msg = document.getElementById("
