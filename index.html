@@ -36,7 +36,7 @@
     .btn-on { background: #e8f5e9; color: var(--primary); border: 1px solid var(--primary); }
     .btn-off { background: #ffebee; color: var(--danger); border: 1px solid var(--danger); }
 
-    /* --- CAMERA BOX (Snapshot Mode) --- */
+    /* --- CAMERA BOX (Standard Iframe Mode) --- */
     .camera-box { 
         background: black; 
         width: 100%; 
@@ -50,8 +50,7 @@
         overflow: hidden; 
     }
 
-    /* Changed from IFRAME to IMG for multi-user support */
-    img#cam-stream {
+    iframe#cam-stream {
         width: 1280px;
         height: 720px;
         border: none;
@@ -60,7 +59,6 @@
         left: 0;
         visibility: hidden; 
         transform-origin: top left;
-        object-fit: contain; /* Ensures photo fits nicely */
     }
 
     .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; }
@@ -86,8 +84,8 @@
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center; }
     .modal-box { background: white; padding: 25px; border-radius: 10px; width: 300px; text-align: center; }
     
-    #config-btn { position: fixed; bottom: 140px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #555; color: white; font-weight: bold; font-size: 20px; border: 1px solid #777; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; }
     #help-btn { position: fixed; bottom: 80px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 20px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; transition: 0.3s; }
+    #help-btn:active { transform: scale(0.9); }
 
     footer { position: fixed; bottom: 0; width: 100%; background: #333; color: white; padding: 15px 0; display: flex; justify-content: space-around; font-size: 12px; }
 
@@ -95,7 +93,6 @@
       .container { flex-direction: column; }
       .sidebar, .main-content { width: 100%; }
       #help-btn { bottom: 90px; left: 15px; } 
-      #config-btn { bottom: 150px; left: 15px; }
     }
   </style>
 </head>
@@ -142,14 +139,13 @@
 
       <div class="main-content">
         <div class="card">
-          <h3>LIVE FEED (Multi-User Mode)</h3>
+          <h3>LIVE FEED (Fixed Link)</h3>
           
           <div class="camera-box" id="cam-container">
-            <img id="cam-stream" src="" alt="Live Feed">
+            <iframe id="cam-stream" src="" allow="autoplay"></iframe>
             
             <div id="cam-msg" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#555; z-index:5;">
-                <span id="cam-status-text" style="font-size:16px; font-weight:bold;">WAITING FOR URL...</span>
-                <span style="font-size:10px;">Click ⚙️ to set Camera Link</span>
+                <span id="cam-status-text" style="font-size:16px; font-weight:bold;">CONNECTING...</span>
             </div>
 
             <div class="slider-container">
@@ -184,7 +180,6 @@
       </div>
     </div>
 
-    <button id="config-btn" onclick="openModal('config-modal')">⚙️</button>
     <button id="help-btn" onclick="openModal('tutorial-modal')">?</button>
 
     <footer>
@@ -194,23 +189,10 @@
     </footer>
   </div>
 
-  <div id="config-modal" class="modal-overlay">
-    <div class="modal-box">
-      <h3 style="color:#333;">CAMERA SETTINGS</h3>
-      <p style="font-size:12px; color:#666;">Paste your Camera/Cloudflare link here:</p>
-      <input type="text" id="stream-input" class="input-field" placeholder="https://xxxx.trycloudflare.com">
-      <div style="display:flex; gap:10px; margin-top:15px;">
-        <button class="btn btn-on" onclick="saveConfig()">SAVE & SYNC</button>
-        <button class="btn btn-off" style="background:#ddd; color:#333; border:1px solid #ccc;" onclick="closeModal('config-modal')">CANCEL</button>
-      </div>
-    </div>
-  </div>
-
   <div id="tutorial-modal" class="modal-overlay">
     <div class="modal-box">
       <h3 style="color:#333;">SYSTEM GUIDE</h3>
-      <p style="font-size:13px; text-align:left;"><b>1. Update Camera:</b><br>Click ⚙️ button and paste new Camera link.</p>
-      <p style="font-size:13px; text-align:left;"><b>2. Multi-User:</b><br>This version uses snapshots so multiple people can watch at once.</p>
+      <p style="font-size:13px; text-align:left;"><b>1. Camera:</b><br>Camera URL is hardcoded. If it stops working, restart the Cloudflare script on your PC.</p>
       <button class="btn btn-on" onclick="closeModal('tutorial-modal')">GOT IT</button>
     </div>
   </div>
@@ -228,14 +210,15 @@
   </div>
 
 <script>
-// ================= CONFIGURATION =================
+// ================= HARDCODED URL =================
+// Note: We add /stream to the end of your Cloudflare link
+const FIXED_CAMERA_URL = "https://continuous-mesh-associations-remainder.trycloudflare.com/stream";
+
 const MQTT_HOST = "143fa294384e4a2fa42c7bfe8a7ebd1d.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884;
 const CLIENT_ID = "web_" + Math.random().toString(16).substr(2, 8);
 const LABELS = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
-let CURRENT_STREAM_URL = ""; 
-let streamInterval = null; // Store the timer
 let client = null;
 let myDeviceName = "Unknown";
 let deviceState = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 }; 
@@ -243,42 +226,31 @@ let pendingId = null;
 let pendingState = null;
 let lockTimer = 0; 
 
-// ================= AUTO-FIT ENGINE (Center Pivot) =================
+// ================= AUTO-FIT ENGINE =================
 function fitCamera() {
     const container = document.getElementById("cam-container");
-    const img = document.getElementById("cam-stream");
-    if(!container || !img) return;
+    const iframe = document.getElementById("cam-stream");
+    if(!container || !iframe) return;
 
     const nativeW = 1280;
     const nativeH = 720;
-    
-    // How wide is the box on the user's screen?
     const availableWidth = container.clientWidth;
-
-    // Calculate Zoom Factor
     const scale = availableWidth / nativeW;
 
-    // Set the Container Height so it doesn't collapse
     container.style.height = (nativeH * scale) + "px";
 
-    // --- CENTERING LOGIC ---
-    img.style.position = "absolute";
-    img.style.width = nativeW + "px";
-    img.style.height = nativeH + "px";
+    iframe.style.position = "absolute";
+    iframe.style.width = nativeW + "px";
+    iframe.style.height = nativeH + "px";
     
-    // 1. Force the video to the middle of the box
-    img.style.left = "50%";
-    img.style.top = "50%";
+    iframe.style.left = "50%";
+    iframe.style.top = "50%";
     
-    // 2. Apply Transform: Center it -> Rotate it -> Shrink it
-    img.style.transform = `translate(-50%, -50%) rotate(180deg) scale(${scale})`;
-    img.style.transformOrigin = "center center";
-    
-    // Show the video
-    img.style.visibility = "visible";
+    iframe.style.transform = `translate(-50%, -50%) rotate(180deg) scale(${scale})`;
+    iframe.style.transformOrigin = "center center";
+    iframe.style.visibility = "visible";
 }
 
-// Re-calculate size if user resizes window
 window.addEventListener('resize', fitCamera);
 
 // ================= INITIALIZATION =================
@@ -297,65 +269,27 @@ window.onload = () => {
     connectSystem();
   }
   
-  setTimeout(fitCamera, 500);
+  // START THE CAMERA IMMEDIATELY
+  startCamera();
 };
 
-// ================= DYNAMIC CONFIG SYSTEM =================
-function saveConfig() {
-    let newUrl = document.getElementById("stream-input").value.trim();
-    if(newUrl.endsWith("/")) newUrl = newUrl.slice(0, -1);
-    
-    if(!newUrl.startsWith("https://")) {
-        alert("Link must start with https://");
-        return;
-    }
-
-    if(client && client.isConnected()) {
-        const msg = new Paho.MQTT.Message(newUrl);
-        msg.destinationName = "/printer_01/config/camera";
-        msg.retained = true; 
-        client.send(msg);
-        alert("Link Saved!");
-        closeModal('config-modal');
-    } else {
-        alert("Not connected to System. Login first.");
-    }
-}
-
-// ================= NEW: SNAPSHOT MODE HANDLER =================
-function updateCameraSource(baseUrl) {
-    if(!baseUrl) return;
-    CURRENT_STREAM_URL = baseUrl;
-    console.log("Starting Multi-User Snapshot Mode: " + baseUrl);
-
-    // 1. Optimize Resolution (Force VGA 640x480 for speed)
-    // We send this command once to ensure snapshots are fast
-    fetch(baseUrl + "/control?var=framesize&val=6").catch(e=>{});
-
+function startCamera() {
     const cam = document.getElementById("cam-stream");
-    document.getElementById("cam-msg").style.display = 'none';
-    
-    // Clear any old timer
-    if(streamInterval) clearInterval(streamInterval);
-
-    // 2. Start the Loop (Fetch new photo every 500ms)
-    // This allows multiple people to query the ESP32 without blocking it
-    streamInterval = setInterval(() => {
-        // We add a timestamp (?t=...) to force the browser to ignore cache
-        cam.src = baseUrl + "/capture?t=" + new Date().getTime();
-    }, 500); // 500ms = 2 frames per second (Safe for ESP32)
-    
-    setTimeout(fitCamera, 200);
+    if(cam) {
+        console.log("Loading Camera: " + FIXED_CAMERA_URL);
+        cam.src = FIXED_CAMERA_URL;
+        document.getElementById("cam-msg").style.display = 'none';
+        setTimeout(fitCamera, 500);
+    }
 }
 
-// ================= LED CONTROL (SYNCED) =================
+// ================= LED CONTROL =================
 function updateLed(val) {
     const percent = Math.round((val / 255) * 100);
     document.getElementById("led-val").innerText = percent + "%";
 
-    if(CURRENT_STREAM_URL) {
-        fetch(CURRENT_STREAM_URL + "/led?val=" + val).catch(e => {});
-    }
+    // Send to Cloudflare URL
+    fetch("https://continuous-mesh-associations-remainder.trycloudflare.com/led?val=" + val).catch(e => {});
 
     if(client && client.isConnected()) {
         const payload = JSON.stringify({val: val, by: myDeviceName});
@@ -446,9 +380,8 @@ function connectSystem() {
       client.subscribe("/printer_01/logs"); 
       client.subscribe("/printer_01/sync");
       client.subscribe("/printer_01/led");
-      client.subscribe("/printer_01/config/camera");
       
-      setTimeout(fitCamera, 1000);
+      startCamera(); // Ensure camera starts after login too
     },
     onFailure: (e) => alert("Connection Failed: " + e.errorMessage)
   });
@@ -458,10 +391,6 @@ function onMessage(m) {
   const topic = m.destinationName;
   const payload = m.payloadString;
 
-  if (topic === "/printer_01/config/camera") {
-      updateCameraSource(payload);
-      return;
-  }
   if (topic === "/printer_01/logs") {
     try { displayLog(JSON.parse(payload)); } catch(e) {}
     return;
