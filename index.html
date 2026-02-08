@@ -152,7 +152,7 @@
             
             <div id="cam-msg" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#555; z-index:5;">
                 <span id="cam-status-text" style="font-size:16px; font-weight:bold;">WAITING FOR URL...</span>
-                <span style="font-size:10px;">Click ⚙️ to set Ngrok Link</span>
+                <span style="font-size:10px;">Click ⚙️ to set Camera Link</span>
             </div>
 
             <div class="slider-container">
@@ -200,8 +200,8 @@
   <div id="config-modal" class="modal-overlay">
     <div class="modal-box">
       <h3 style="color:#333;">CAMERA SETTINGS</h3>
-      <p style="font-size:12px; color:#666;">Paste your new Ngrok link here:</p>
-      <input type="text" id="ngrok-input" class="input-field" placeholder="https://xxxx.ngrok-free.app">
+      <p style="font-size:12px; color:#666;">Paste your Camera/Cloudflare link here:</p>
+      <input type="text" id="stream-input" class="input-field" placeholder="https://xxxx.trycloudflare.com">
       <div style="display:flex; gap:10px; margin-top:15px;">
         <button class="btn btn-on" onclick="saveConfig()">SAVE & SYNC</button>
         <button class="btn btn-off" style="background:#ddd; color:#333; border:1px solid #ccc;" onclick="closeModal('config-modal')">CANCEL</button>
@@ -212,7 +212,7 @@
   <div id="tutorial-modal" class="modal-overlay">
     <div class="modal-box">
       <h3 style="color:#333;">SYSTEM GUIDE</h3>
-      <p style="font-size:13px; text-align:left;"><b>1. Update Camera:</b><br>Click ⚙️ button and paste new Ngrok link.</p>
+      <p style="font-size:13px; text-align:left;"><b>1. Update Camera:</b><br>Click ⚙️ button and paste new Camera link.</p>
       <p style="font-size:13px; text-align:left;"><b>2. Control Panel:</b><br>Toggle individual devices. Locked if Master is OFF.</p>
       <button class="btn btn-on" onclick="closeModal('tutorial-modal')">GOT IT</button>
     </div>
@@ -237,7 +237,7 @@ const MQTT_PORT = 8884;
 const CLIENT_ID = "web_" + Math.random().toString(16).substr(2, 8);
 const LABELS = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
-let CURRENT_NGROK_URL = ""; 
+let CURRENT_STREAM_URL = ""; 
 let client = null;
 let myDeviceName = "Unknown";
 let deviceState = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 }; 
@@ -245,13 +245,12 @@ let pendingId = null;
 let pendingState = null;
 let lockTimer = 0; 
 
-// ================= AUTO-FIT ENGINE (The Magic Part) =================
+// ================= AUTO-FIT ENGINE (Center Pivot) =================
 function fitCamera() {
     const container = document.getElementById("cam-container");
     const iframe = document.getElementById("cam-stream");
     if(!container || !iframe) return;
 
-    // The raw size of the video coming from ESP32
     const nativeW = 1280;
     const nativeH = 720;
     
@@ -261,18 +260,24 @@ function fitCamera() {
     // Calculate Zoom Factor
     const scale = availableWidth / nativeW;
 
-    // Apply Transformation: Scale down + Rotate 180
-    iframe.style.transform = `scale(${scale}) rotate(180deg)`;
-    iframe.style.transformOrigin = "top left"; 
-    
-    // Position adjustments because rotation flips the box
-    iframe.style.left = (nativeW * scale) + "px";
-    iframe.style.top = (nativeH * scale) + "px";
-
-    // Force the container to match the new shrunk height
+    // Set the Container Height so it doesn't collapse
     container.style.height = (nativeH * scale) + "px";
+
+    // --- CENTERING LOGIC ---
+    iframe.style.position = "absolute";
+    iframe.style.width = nativeW + "px";
+    iframe.style.height = nativeH + "px";
     
-    // Show the video now that it fits
+    // 1. Force the video to the middle of the box
+    iframe.style.left = "50%";
+    iframe.style.top = "50%";
+    
+    // 2. Apply Transform: Center it -> Rotate it -> Shrink it
+    // translate(-50%, -50%) ensures it pivots perfectly from the center
+    iframe.style.transform = `translate(-50%, -50%) rotate(180deg) scale(${scale})`;
+    iframe.style.transformOrigin = "center center";
+    
+    // Show the video
     iframe.style.visibility = "visible";
 }
 
@@ -301,7 +306,7 @@ window.onload = () => {
 
 // ================= DYNAMIC CONFIG SYSTEM =================
 function saveConfig() {
-    let newUrl = document.getElementById("ngrok-input").value.trim();
+    let newUrl = document.getElementById("stream-input").value.trim();
     if(newUrl.endsWith("/")) newUrl = newUrl.slice(0, -1);
     
     if(!newUrl.startsWith("https://")) {
@@ -323,7 +328,7 @@ function saveConfig() {
 
 function updateCameraSource(baseUrl) {
     if(!baseUrl) return;
-    CURRENT_NGROK_URL = baseUrl;
+    CURRENT_STREAM_URL = baseUrl;
     const streamUrl = baseUrl + "/stream";
     console.log("Updating Stream to: " + streamUrl);
     
@@ -341,8 +346,8 @@ function updateLed(val) {
     const percent = Math.round((val / 255) * 100);
     document.getElementById("led-val").innerText = percent + "%";
 
-    if(CURRENT_NGROK_URL) {
-        fetch(CURRENT_NGROK_URL + "/led?val=" + val).catch(e => console.log("LED Error (Offline?)"));
+    if(CURRENT_STREAM_URL) {
+        fetch(CURRENT_STREAM_URL + "/led?val=" + val).catch(e => console.log("LED Error (Offline?)"));
     }
 
     if(client && client.isConnected()) {
