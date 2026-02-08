@@ -306,17 +306,21 @@ function toggleLed() {
 }
 
 function sendLedCommand(val) {
-    // Update UI immediately
+    // 1. Update the Button Color Immediately
     updateLedUi(val);
 
-    // Send Original ESP32 Camera Command (HTTP via Cloudflare)
+    // 2. Send Command using the "Image Trick" (Bypasses Security Blocks)
     if(currentCameraUrl) {
+        // Clean the URL to get the base
         const baseUrl = currentCameraUrl.replace("/stream", "");
-        // FIXED: REVERTED TO /led?val=... because this worked for you before
-        fetch(baseUrl + "/led?val=" + val).catch(e => {});
+        const cleanUrl = baseUrl.replace(/\/$/, ""); // Remove trailing slash
+        
+        // Create an invisible image to trigger the command
+        const cmdImg = new Image();
+        cmdImg.src = cleanUrl + "/led?val=" + val + "&t=" + new Date().getTime();
     }
 
-    // Send MQTT (Sync)
+    // 3. Sync with other devices via MQTT
     if(client && client.isConnected()) {
         const payload = JSON.stringify({val: val, by: myDeviceName});
         const msg = new Paho.MQTT.Message(payload);
