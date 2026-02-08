@@ -93,7 +93,20 @@
     .tut-btn { padding: 8px 15px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; background: #eee; color: #555; }
     .tut-btn:hover { background: #ddd; }
     .tut-btn.primary { background: var(--primary); color: white; }
-
+    
+    /* Tutorial Image */
+    .tut-img { 
+        width: 100%; 
+        border-radius: 8px; 
+        margin-bottom: 15px; 
+        border: 1px solid #ddd;
+        display: block;
+    }
+    .tut-content-scroll {
+        max-height: 400px;
+        overflow-y: auto;
+        padding-right: 10px;
+    }
     /* Config Buttons */
     #config-btn { position: fixed; bottom: 140px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #555; color: white; font-weight: bold; font-size: 20px; border: 1px solid #777; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; }
     #help-btn { position: fixed; bottom: 80px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 20px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; transition: 0.3s; }
@@ -108,6 +121,7 @@
       #help-btn { bottom: 90px; left: 15px; } 
       #config-btn { bottom: 150px; left: 15px; }
     }
+
   </style>
 </head>
 <body>
@@ -199,17 +213,25 @@
     </footer>
   </div>
 
-  <div id="config-modal" class="modal-overlay">
-    <div class="modal-box">
-      <h3 style="color:#333;">CAMERA SETTINGS</h3>
-      <p style="font-size:12px; color:#666;">Paste your new Cloudflare link here:</p>
-      <input type="text" id="stream-input" class="input-field" placeholder="https://xxxx.trycloudflare.com">
-      <div style="display:flex; gap:10px; margin-top:15px;">
-        <button class="btn btn-on" onclick="saveConfig()">SAVE & SYNC</button>
-        <button class="btn btn-off" style="background:#ddd; color:#333; border:1px solid #ccc;" onclick="closeModal('config-modal')">CANCEL</button>
-      </div>
+<div id="tutorial-modal" class="modal-overlay">
+  <div class="modal-box modal-wide">
+    <div class="tut-header">
+       <span id="tut-title-text">MANUAL</span>
+       <span id="tut-page-indicator" style="font-size:10px; background:#eee; padding:2px 6px; border-radius:4px;">1/5</span>
+    </div>
+    
+    <div class="tut-content-scroll">
+      <img id="tut-image-display" src="" class="tut-img" style="display:none;">
+      <div id="tut-content-area" class="tut-section"></div>
+    </div>
+
+    <div class="tut-nav">
+       <button class="tut-btn" id="btn-prev" onclick="changeTutorialPage(-1)">Previous</button>
+       <button class="tut-btn" onclick="closeModal('tutorial-modal')">Close</button>
+       <button class="tut-btn primary" id="btn-next" onclick="changeTutorialPage(1)">Next</button>
     </div>
   </div>
+</div>
 
   <div id="tutorial-modal" class="modal-overlay">
     <div class="modal-box modal-wide">
@@ -276,70 +298,96 @@ window.onload = () => {
 
 // ================= TUTORIAL DATA & LOGIC =================
 const tutorialData = [
-    {
-        title: "1. MAIN CONTROLS",
+        {
+          title: "1. MAIN HOST: ESP32",
+          img: "https://via.placeholder.com/600x300/2d2d2d/ffffff?text=ESP32+Pinout+&+Relay+Logic",
+          content: `
+              <p>The brain of the Smart Mezza is an <b>ESP32 DevKit V1</b>. It manages the relay logic, sensor data, and MQTT communication.</p>
+              <div class="tut-step">
+                  <b>Relay Control:</b> GPIO pins drive the 8-channel relay module. Note that most relay modules are <i>Active-Low</i>, meaning the ESP32 pulls the pin to GND to turn the printer ON.
+              </div>
+              <div class="tut-step">
+                  <b>Power Supply:</b> The ESP32 is powered via 5V DC. Ensure the ground (GND) is common between the ESP32 and the relay board to prevent switching noise.
+              </div>
+              <div class="tut-warn">⚠️ VOLTAGE: Never connect the AC mains directly to the ESP32 pins. Use the relay isolation.</div>
+          `
+      },
+  
+      {
+        title: "2. LIVE FEED: ESP32-CAM",
+        img: "https://via.placeholder.com/600x300/1a1a1a/ffffff?text=ESP32-CAM+Wiring+&+Power",
         content: `
-            <p style="font-size:13px; color:#555;">This dashboard controls the Smart Mezza power distribution unit.</p>
-            
+            <p>A separate <b>ESP32-CAM</b> module provides the live video stream of the 3D printer bed.</p>
             <div class="tut-step">
-                <b>Master Power (System Bus)</b><br>
-                This is the main breaker. If this is <b>OFF</b>, all other switches are locked and disabled for safety. You must turn this ON first.
+                <b>Stream Logic:</b> The camera runs a local web server on port 80. The <i>Cloudflared</i> tunnel on your PC captures this local IP and broadcasts it to the dashboard link.
             </div>
-
             <div class="tut-step">
-                <b>Control Panel</b><br>
-                Contains 8 relays (Printers, LEDs, etc.). Click to toggle.
-                <ul>
-                    <li><b>Green:</b> Device is ON.</li>
-                    <li><b>Red:</b> Device is OFF.</li>
-                </ul>
+                <b>Power Requirement:</b> The ESP32-CAM is sensitive to power drops. It is recommended to use a dedicated 5V power source capable of at least 2A to prevent "Brownout" resets during streaming.
             </div>
-
-            <div class="tut-warn">⚠️ SAFETY LOCK: Turning OFF the Master Power requires you to type "CONFIRM".</div>
+            <div class="tut-step">
+                <b>Orientation:</b> In this dashboard, the CSS is set to <i>transform: rotate(180deg)</i>. Mount the camera accordingly or adjust the CSS if your view is upside down.
+            </div>
+          `
+    },
+  
+    {
+        title: "3. SYSTEM ARCHITECTURE",
+        // Replace with your actual image path (e.g., "img/layout.png")
+        img: "https://via.placeholder.com/600x300/4CAF50/ffffff?text=Dashboard+Layout+Overview", 
+        content: `
+            <p>Welcome to the <b>Smart Mezza Control System</b>. This interface communicates via MQTT to your ESP32 controller at the PUP EE Laboratory.</p>
+            <div class="tut-step">
+                <b>Master Power (System Bus):</b> This is the gatekeeper. When OFF, it physically disconnects the relay bank. No device that is connected to relay can be toggled unless this is ON.
+            </div>
+            <div class="tut-step">
+                <b>Real-Time Sync:</b> If another user (e.g., on a different phone) toggles a switch, your dashboard updates automatically within 200ms.
+            </div>
         `
     },
     {
-        title: "2. SETTING UP CAMERA",
+        title: "4. SAFETY & SHUTDOWN",
+        img: "https://via.placeholder.com/600x300/f44336/ffffff?text=Two-Step+Shutdown+Logic",
         content: `
-            <p style="font-size:12px; color:#555;">Follow these steps on a PC connected to the same WiFi as the ESP32.</p>
-        
+            <p>To prevent accidental print failures, we have implemented a <b>Two-Step Safety Protocol</b>.</p>
             <div class="tut-step">
-                <b>Step A: Download Tool</b><br>
-                Download <a href="https://github.com/cloudflare/cloudflared/releases" target="_blank">cloudflared-windows-amd64.exe</a> and rename it to <code>cloudflared.exe</code>.
+                <b>The "CONFIRM" Requirement:</b> Turning OFF the Master Power or individual printers requires an explicit confirmation. For the Master Power, you must type "CONFIRM" in all caps.
             </div>
-        
+            <div class="tut-warn">⚠️ WARNING: Killing the Master Power during an active print will cause the hotend to stop cooling immediately, which may cause heat creep/clogging.</div>
+        `
+    },
+    {
+        title: "5. CLOUD CAMERA SETUP",
+        img: "https://via.placeholder.com/600x300/333333/ffffff?text=Cloudflare+Tunnel+Guide",
+        content: `
+            <p>The live feed uses a secure Cloudflare Tunnel to bypass local firewall restrictions.</p>
             <div class="tut-step">
-                <b>Step B: Run Command</b><br>
-                Open CMD in that folder and run:<br>
-                <code class="code-block">cloudflared tunnel --url http://192.168.1.50:80</code>
+                <b>Step 1:</b> Run the tunnel on your local PC: <br>
+                <code class="code-block">cloudflared tunnel --url http://[ESP32_IP]:80</code>
             </div>
-
             <div class="tut-step">
-                <b>Step C: Link It</b><br>
-                Copy the link ending in <code>.trycloudflare.com</code>.<br>
-                Click the <b>⚙️ Gear Icon</b> in this app and paste it.
+                <b>Step 2:</b> Copy the <i>.trycloudflare.com</i> link and click the ⚙️ icon on the dashboard to save it. This link is stored in the HiveMQ broker so all users see the same stream.
             </div>
         `
     },
     {
-        title: "3. ACTIVITY LOGS",
+        title: "6. POWER MONITORING",
+        img: "https://via.placeholder.com/600x300/2196F3/ffffff?text=PZEM-004T+Data+Reading",
         content: `
-            <p style="font-size:13px; color:#555;">The system tracks every action taken by any user.</p>
-
+            <p>The <b>PZEM-004T</b> module tracks high-voltage metrics from the printer bus.</p>
+            <ul>
+                <li><b>Voltage:</b> Ensure it stays between 210V-230V.</li>
+                <li><b>Current (Amps):</b> Monitor this when multiple printers start heating up.</li>
+                <li><b>Wattage:</b> Helpful for calculating the cost-per-print.</li>
+            </ul>
+        `
+    },
+    {
+        title: "7. ACTIVITY AUDITING",
+        img: "https://via.placeholder.com/600x300/777777/ffffff?text=Security+Activity+Logs",
+        content: `
+            <p>Security is maintained through the <b>Activity Log</b>.</p>
             <div class="tut-step">
-                <b>What is Logged?</b><br>
-                Every time a button is pressed, the system records:
-                <ul>
-                    <li><b>Time:</b> When it happened.</li>
-                    <li><b>By:</b> The "Device Name" of the user who clicked it.</li>
-                    <li><b>Action:</b> ON or OFF.</li>
-                    <li><b>Target:</b> Which device was toggled.</li>
-                </ul>
-            </div>
-
-            <div class="tut-step">
-                <b>Syncing</b><br>
-                These logs are broadcasted to everyone currently online. If "Red's Phone" turns on a light, your screen will instantly update the log to show that action.
+                Every action is tagged with your <b>Device Name</b>. This ensures accountability for who turned off a specific printer. Logs are ephemeral and reset when the page is hard-refreshed, but the last 50 actions are stored in your local browser history.
             </div>
         `
     }
@@ -347,22 +395,25 @@ const tutorialData = [
 
 function renderTutorial() {
     const data = tutorialData[currentTutPage];
+    const imgEl = document.getElementById("tut-image-display");
+    
     document.getElementById("tut-title-text").innerText = data.title;
     document.getElementById("tut-content-area").innerHTML = data.content;
     document.getElementById("tut-page-indicator").innerText = `${currentTutPage + 1}/${tutorialData.length}`;
 
-    // Manage Button States
+    // Handle Image Visibility
+    if (data.img) {
+        imgEl.src = data.img;
+        imgEl.style.display = "block";
+    } else {
+        imgEl.style.display = "none";
+    }
+
     const prevBtn = document.getElementById("btn-prev");
     const nextBtn = document.getElementById("btn-next");
-
     prevBtn.disabled = (currentTutPage === 0);
     prevBtn.style.opacity = (currentTutPage === 0) ? "0.3" : "1";
-
-    if (currentTutPage === tutorialData.length - 1) {
-        nextBtn.innerText = "Finish";
-    } else {
-        nextBtn.innerText = "Next";
-    }
+    nextBtn.innerText = (currentTutPage === tutorialData.length - 1) ? "Finish" : "Next";
 }
 
 function changeTutorialPage(dir) {
