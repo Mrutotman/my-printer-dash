@@ -62,15 +62,24 @@
     .pzem-val { font-size: 18px; font-weight: bold; }
     .pzem-label { font-size: 10px; color: #888; }
 
-    /* Slider UI */
-    .slider-container {
-        position: absolute; bottom: 10px; left: 10px; right: 10px;
-        background: rgba(0,0,0,0.6); border-radius: 20px; padding: 5px 15px;
-        display: flex; align-items: center; gap: 10px; backdrop-filter: blur(4px);
+    /* New LED Button UI */
+    .cam-controls {
+        position: absolute; bottom: 10px; left: 0; right: 0;
+        display: flex; justify-content: center;
         z-index: 10;
     }
-    .slider-container span { color: white; font-size: 12px; font-weight: bold; }
-    input[type=range] { width: 100%; cursor: pointer; accent-color: var(--primary); }
+    #led-toggle-btn {
+        background: rgba(0,0,0,0.6); color: white; 
+        border: 1px solid #777; padding: 8px 20px; 
+        border-radius: 20px; cursor: pointer; 
+        backdrop-filter: blur(4px); font-weight: bold; font-size: 12px;
+        transition: 0.3s; display: flex; align-items: center; gap: 8px;
+    }
+    #led-toggle-btn.active {
+        background: rgba(76, 175, 80, 0.9); /* Green */
+        border-color: var(--primary);
+        box-shadow: 0 0 10px var(--primary);
+    }
     
     .log-list { font-size: 11px; height: 150px; overflow-y: auto; border-top: 1px solid #eee; }
     .log-table { width: 100%; border-collapse: collapse; }
@@ -149,10 +158,10 @@
                 <span style="font-size:10px;">Click ⚙️ to set Cloudflare Link</span>
             </div>
 
-            <div class="slider-container">
-                <span>💡</span>
-                <input type="range" min="0" max="255" value="0" id="led-slider" oninput="updateLed(this.value)">
-                <span id="led-val">0%</span>
+            <div class="cam-controls">
+                <button id="led-toggle-btn" onclick="toggleLed()">
+                    <span>💡</span> <span id="led-txt">LIGHT OFF</span>
+                </button>
             </div>
           </div>
         </div>
@@ -234,6 +243,7 @@ let client = null;
 let currentCameraUrl = "";
 let myDeviceName = "Unknown";
 let deviceState = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 }; 
+let ledState = 0; // 0 = OFF, 255 = ON
 let pendingId = null; 
 let pendingState = null;
 let lockTimer = 0; 
@@ -258,12 +268,9 @@ window.onload = () => {
 // ================= DYNAMIC CAMERA SYSTEM =================
 function saveConfig() {
     let newUrl = document.getElementById("stream-input").value.trim();
-    if(newUrl.endsWith("/")) newUrl = newUrl.slice(0, -1); // Remove trailing slash
+    if(newUrl.endsWith("/")) newUrl = newUrl.slice(0, -1);
     
-    // Auto-fix URL format if user forgets /stream
-    if(!newUrl.includes("/stream")) {
-         newUrl += "/stream";
-    }
+    if(!newUrl.includes("/stream")) newUrl += "/stream";
 
     if(!newUrl.startsWith("https://")) {
         alert("Link must start with https://");
@@ -273,9 +280,9 @@ function saveConfig() {
     if(client && client.isConnected()) {
         const msg = new Paho.MQTT.Message(newUrl);
         msg.destinationName = "/printer_01/config/camera";
-        msg.retained = true; // SAVE IT FOREVER
+        msg.retained = true; 
         client.send(msg);
-        alert("Link Saved & Synced to All Devices!");
+        alert("Link Saved & Synced!");
         closeModal('config-modal');
     } else {
         alert("Not connected to System. Login first.");
@@ -285,30 +292,49 @@ function saveConfig() {
 function updateCameraSource(url) {
     if(!url || url === currentCameraUrl) return;
     currentCameraUrl = url;
-    console.log("New Camera URL Received: " + url);
-    
     const cam = document.getElementById("cam-stream");
     cam.src = url; 
 }
 
-// ================= LED CONTROL =================
-function updateLed(val) {
-    const percent = Math.round((val / 255) * 100);
-    document.getElementById("led-val").innerText = percent + "%";
+// ================= NEW LED BUTTON LOGIC =================
+function toggleLed() {
+    // Toggle State (If 0 -> 255, If >0 -> 0)
+    ledState = (ledState === 0) ? 255 : 0;
+    
+    sendLedCommand(ledState);
+}
 
-    // Try to send to current Cloudflare URL if known
+function sendLedCommand(val) {
+    // Update UI immediately
+    updateLedUi(val);
+
+    // Send HTTP (Cloudflare)
     if(currentCameraUrl) {
-        // Strip /stream to get base URL
         const baseUrl = currentCameraUrl.replace("/stream", "");
         fetch(baseUrl + "/led?val=" + val).catch(e => {});
     }
 
+    // Send MQTT (Sync)
     if(client && client.isConnected()) {
         const payload = JSON.stringify({val: val, by: myDeviceName});
         const msg = new Paho.MQTT.Message(payload);
         msg.destinationName = "/printer_01/led";
         msg.retained = true; 
         client.send(msg);
+    }
+}
+
+function updateLedUi(val) {
+    ledState = Number(val);
+    const btn = document.getElementById("led-toggle-btn");
+    const txt = document.getElementById("led-txt");
+    
+    if(ledState > 0) {
+        btn.classList.add("active");
+        txt.innerText = "LIGHT ON";
+    } else {
+        btn.classList.remove("active");
+        txt.innerText = "LIGHT OFF";
     }
 }
 
@@ -392,7 +418,7 @@ function connectSystem() {
       client.subscribe("/printer_01/logs"); 
       client.subscribe("/printer_01/sync");
       client.subscribe("/printer_01/led");
-      client.subscribe("/printer_01/config/camera"); // LISTEN FOR URL
+      client.subscribe("/printer_01/config/camera");
     },
     onFailure: (e) => alert("Connection Failed: " + e.errorMessage)
   });
@@ -402,12 +428,10 @@ function onMessage(m) {
   const topic = m.destinationName;
   const payload = m.payloadString;
 
-  // HANDLE CAMERA URL UPDATE
   if (topic === "/printer_01/config/camera") {
       updateCameraSource(payload);
       return;
   }
-
   if (topic === "/printer_01/logs") {
     try { displayLog(JSON.parse(payload)); } catch(e) {}
     return;
@@ -415,11 +439,8 @@ function onMessage(m) {
   if (topic === "/printer_01/led") {
       try {
           const d = JSON.parse(payload);
-          if(d.by !== myDeviceName) {
-              document.getElementById("led-slider").value = d.val;
-              const percent = Math.round((d.val / 255) * 100);
-              document.getElementById("led-val").innerText = percent + "%";
-          }
+          // Always update UI even if it's me (for sync)
+          updateLedUi(d.val);
       } catch(e) {}
       return;
   }
