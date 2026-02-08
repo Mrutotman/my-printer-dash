@@ -88,7 +88,25 @@
 
     /* Modals */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center; }
-    .modal-box { background: white; padding: 25px; border-radius: 10px; width: 300px; text-align: center; }
+    
+    /* MODIFIED MODAL BOX FOR TUTORIAL */
+    .modal-box { 
+        background: white; 
+        padding: 25px; 
+        border-radius: 10px; 
+        width: 300px; 
+        text-align: center; 
+        max-height: 80vh; 
+        overflow-y: auto; /* Scrollable */
+    }
+    .modal-wide { width: 90%; max-width: 600px; text-align: left; }
+
+    /* Tutorial Styles */
+    .tut-header { border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-bottom: 15px; color: #333; }
+    .tut-section { margin-bottom: 20px; }
+    .tut-step { background: #f9f9f9; padding: 10px; border-left: 4px solid var(--primary); margin-bottom: 10px; border-radius: 0 5px 5px 0; font-size: 13px; color: #444; }
+    .code-block { background: #333; color: #0f0; padding: 8px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 11px; display: block; margin: 5px 0; overflow-x: auto; white-space: nowrap; }
+    .tut-warn { color: #d32f2f; font-weight: bold; font-size: 12px; background: #ffebee; padding: 5px; border-radius: 4px; }
     
     /* Config Buttons */
     #config-btn { position: fixed; bottom: 140px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #555; color: white; font-weight: bold; font-size: 20px; border: 1px solid #777; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; }
@@ -213,10 +231,54 @@
   </div>
 
   <div id="tutorial-modal" class="modal-overlay">
-    <div class="modal-box">
-      <h3 style="color:#333;">SYSTEM GUIDE</h3>
-      <p style="font-size:13px; text-align:left;"><b>1. Update Camera:</b><br>Click ⚙️ button and paste new Cloudflare link.</p>
-      <button class="btn btn-on" onclick="closeModal('tutorial-modal')">GOT IT</button>
+    <div class="modal-box modal-wide">
+      <h3 class="tut-header">SYSTEM MANUAL & GUIDE</h3>
+      
+      <div class="tut-section">
+        <h4 style="margin:0 0 5px 0;">1. How it Works</h4>
+        <p style="font-size:12px; color:#555;">This system creates a bridge between your local ESP32 Camera and the internet.</p>
+        <ul style="font-size:12px; padding-left:20px; color:#555;">
+          <li><b>Buttons:</b> Use HiveMQ (MQTT) to send commands instantly.</li>
+          <li><b>Video:</b> Uses Cloudflare Tunnel to stream video from your local WiFi to the web.</li>
+        </ul>
+      </div>
+
+      <div class="tut-section">
+        <h4 style="margin:0 0 5px 0;">2. Setting up the Camera Bridge</h4>
+        <p style="font-size:12px; color:#555;">You must run this on a PC connected to the same WiFi as the ESP32.</p>
+        
+        <div class="tut-step">
+          <b>Step A: Download Tool</b><br>
+          Download <a href="https://github.com/cloudflare/cloudflared/releases" target="_blank">cloudflared-windows-amd64.exe</a> and rename it to <code>cloudflared.exe</code>.
+        </div>
+        
+        <div class="tut-step">
+          <b>Step B: Run Command</b><br>
+          Open CMD in that folder and run:<br>
+          <code class="code-block">cloudflared tunnel --url http://192.168.1.50:80</code>
+          (Replace 192.168.1.50 with your ESP32 IP)
+        </div>
+
+        <div class="tut-step">
+          <b>Step C: Link It</b><br>
+          Copy the link ending in <code>.trycloudflare.com</code>.<br>
+          Click the <b>⚙️ Gear Icon</b> in this app and paste it.
+        </div>
+      </div>
+
+      <div class="tut-section">
+        <h4 style="margin:0 0 5px 0;">3. Important Limitations</h4>
+        <div class="tut-warn">⚠️ The PC running Cloudflare must stay ON.</div>
+        <ul style="font-size:12px; padding-left:20px; color:#555; margin-top:5px;">
+          <li><b>Single Stream:</b> Only 1 person can view the video smoothly at a time.</li>
+          <li><b>Link Expiry:</b> If you restart the PC, you get a new link and must update the settings (⚙️).</li>
+          <li><b>Power:</b> The Flash LED is limited to low brightness to prevent the ESP32 from crashing (Brownout).</li>
+        </ul>
+      </div>
+
+      <div style="text-align:right;">
+        <button class="btn btn-on" style="width:auto; padding:8px 20px;" onclick="closeModal('tutorial-modal')">CLOSE GUIDE</button>
+      </div>
     </div>
   </div>
 
@@ -301,26 +363,25 @@ function updateCameraSource(url) {
 function toggleLed() {
     // Toggle State (If 0 -> 255, If >0 -> 0)
     ledState = (ledState === 0) ? 255 : 0;
-    
     sendLedCommand(ledState);
 }
 
 function sendLedCommand(val) {
-    // 1. Update the Button Color Immediately
+    // 1. Update UI Immediately
     updateLedUi(val);
 
     // 2. Send Command using the "Image Trick" (Bypasses Security Blocks)
     if(currentCameraUrl) {
-        // Clean the URL to get the base
         const baseUrl = currentCameraUrl.replace("/stream", "");
-        const cleanUrl = baseUrl.replace(/\/$/, ""); // Remove trailing slash
+        // Clean trailing slash just in case
+        const cleanUrl = baseUrl.replace(/\/$/, ""); 
         
         // Create an invisible image to trigger the command
         const cmdImg = new Image();
         cmdImg.src = cleanUrl + "/led?val=" + val + "&t=" + new Date().getTime();
     }
 
-    // 3. Sync with other devices via MQTT
+    // 3. Sync with MQTT
     if(client && client.isConnected()) {
         const payload = JSON.stringify({val: val, by: myDeviceName});
         const msg = new Paho.MQTT.Message(payload);
