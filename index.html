@@ -61,25 +61,6 @@
     .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; }
     .pzem-val { font-size: 18px; font-weight: bold; }
     .pzem-label { font-size: 10px; color: #888; }
-
-    /* New LED Button UI */
-    .cam-controls {
-        position: absolute; bottom: 10px; left: 0; right: 0;
-        display: flex; justify-content: center;
-        z-index: 10;
-    }
-    #led-toggle-btn {
-        background: rgba(0,0,0,0.6); color: white; 
-        border: 1px solid #777; padding: 8px 20px; 
-        border-radius: 20px; cursor: pointer; 
-        backdrop-filter: blur(4px); font-weight: bold; font-size: 12px;
-        transition: 0.3s; display: flex; align-items: center; gap: 8px;
-    }
-    #led-toggle-btn.active {
-        background: rgba(76, 175, 80, 0.9); /* Green */
-        border-color: var(--primary);
-        box-shadow: 0 0 10px var(--primary);
-    }
     
     .log-list { font-size: 11px; height: 150px; overflow-y: auto; border-top: 1px solid #eee; }
     .log-table { width: 100%; border-collapse: collapse; }
@@ -89,7 +70,6 @@
     /* Modals */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center; }
     
-    /* MODIFIED MODAL BOX FOR TUTORIAL */
     .modal-box { 
         background: white; 
         padding: 25px; 
@@ -97,17 +77,23 @@
         width: 300px; 
         text-align: center; 
         max-height: 80vh; 
-        overflow-y: auto; /* Scrollable */
+        overflow-y: auto; 
     }
     .modal-wide { width: 90%; max-width: 600px; text-align: left; }
 
     /* Tutorial Styles */
-    .tut-header { border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-bottom: 15px; color: #333; }
-    .tut-section { margin-bottom: 20px; }
+    .tut-header { border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-bottom: 15px; color: #333; display: flex; justify-content: space-between; align-items: center;}
+    .tut-section { margin-bottom: 20px; min-height: 200px; }
     .tut-step { background: #f9f9f9; padding: 10px; border-left: 4px solid var(--primary); margin-bottom: 10px; border-radius: 0 5px 5px 0; font-size: 13px; color: #444; }
     .code-block { background: #333; color: #0f0; padding: 8px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 11px; display: block; margin: 5px 0; overflow-x: auto; white-space: nowrap; }
     .tut-warn { color: #d32f2f; font-weight: bold; font-size: 12px; background: #ffebee; padding: 5px; border-radius: 4px; }
     
+    /* Tutorial Navigation */
+    .tut-nav { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eee; padding-top: 15px; }
+    .tut-btn { padding: 8px 15px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; background: #eee; color: #555; }
+    .tut-btn:hover { background: #ddd; }
+    .tut-btn.primary { background: var(--primary); color: white; }
+
     /* Config Buttons */
     #config-btn { position: fixed; bottom: 140px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #555; color: white; font-weight: bold; font-size: 20px; border: 1px solid #777; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; }
     #help-btn { position: fixed; bottom: 80px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 20px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; transition: 0.3s; }
@@ -118,6 +104,7 @@
     @media (max-width: 700px) {
       .container { flex-direction: column; }
       .sidebar, .main-content { width: 100%; }
+      .pzem-grid { grid-template-columns: 1fr 1fr; }
       #help-btn { bottom: 90px; left: 15px; } 
       #config-btn { bottom: 150px; left: 15px; }
     }
@@ -167,19 +154,13 @@
       <div class="main-content">
         <div class="card">
           <h3>LIVE FEED (Auto-Synced)</h3>
-          
+           
           <div class="camera-box">
             <img id="cam-stream" src="" alt="Live Feed" onload="this.style.display='block'; document.getElementById('cam-msg').style.display='none';">
             
             <div id="cam-msg" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#555; z-index:5;">
                 <span id="cam-status-text" style="font-size:16px; font-weight:bold;">WAITING FOR LINK...</span>
                 <span style="font-size:10px;">Click ⚙️ to set Cloudflare Link</span>
-            </div>
-
-            <div class="cam-controls">
-                <button id="led-toggle-btn" onclick="toggleLed()">
-                    <span>💡</span> <span id="led-txt">LIGHT OFF</span>
-                </button>
             </div>
           </div>
         </div>
@@ -232,52 +213,18 @@
 
   <div id="tutorial-modal" class="modal-overlay">
     <div class="modal-box modal-wide">
-      <h3 class="tut-header">SYSTEM MANUAL & GUIDE</h3>
+      <div class="tut-header">
+         <span id="tut-title-text">MANUAL</span>
+         <span id="tut-page-indicator" style="font-size:10px; background:#eee; padding:2px 6px; border-radius:4px;">1/3</span>
+      </div>
       
-      <div class="tut-section">
-        <h4 style="margin:0 0 5px 0;">1. How it Works</h4>
-        <p style="font-size:12px; color:#555;">This system creates a bridge between your local ESP32 Camera and the internet.</p>
-        <ul style="font-size:12px; padding-left:20px; color:#555;">
-          <li><b>Buttons:</b> Use HiveMQ (MQTT) to send commands instantly.</li>
-          <li><b>Video:</b> Uses Cloudflare Tunnel to stream video from your local WiFi to the web.</li>
-        </ul>
-      </div>
-
-      <div class="tut-section">
-        <h4 style="margin:0 0 5px 0;">2. Setting up the Camera Bridge</h4>
-        <p style="font-size:12px; color:#555;">You must run this on a PC connected to the same WiFi as the ESP32.</p>
-        
-        <div class="tut-step">
-          <b>Step A: Download Tool</b><br>
-          Download <a href="https://github.com/cloudflare/cloudflared/releases" target="_blank">cloudflared-windows-amd64.exe</a> and rename it to <code>cloudflared.exe</code>.
-        </div>
-        
-        <div class="tut-step">
-          <b>Step B: Run Command</b><br>
-          Open CMD in that folder and run:<br>
-          <code class="code-block">cloudflared tunnel --url http://192.168.1.50:80</code>
-          (Replace 192.168.1.50 with your ESP32 IP)
+      <div id="tut-content-area" class="tut-section">
         </div>
 
-        <div class="tut-step">
-          <b>Step C: Link It</b><br>
-          Copy the link ending in <code>.trycloudflare.com</code>.<br>
-          Click the <b>⚙️ Gear Icon</b> in this app and paste it.
-        </div>
-      </div>
-
-      <div class="tut-section">
-        <h4 style="margin:0 0 5px 0;">3. Important Limitations</h4>
-        <div class="tut-warn">⚠️ The PC running Cloudflare must stay ON.</div>
-        <ul style="font-size:12px; padding-left:20px; color:#555; margin-top:5px;">
-          <li><b>Single Stream:</b> Only 1 person can view the video smoothly at a time.</li>
-          <li><b>Link Expiry:</b> If you restart the PC, you get a new link and must update the settings (⚙️).</li>
-          <li><b>Power:</b> The Flash LED is limited to low brightness to prevent the ESP32 from crashing (Brownout).</li>
-        </ul>
-      </div>
-
-      <div style="text-align:right;">
-        <button class="btn btn-on" style="width:auto; padding:8px 20px;" onclick="closeModal('tutorial-modal')">CLOSE GUIDE</button>
+      <div class="tut-nav">
+         <button class="tut-btn" id="btn-prev" onclick="changeTutorialPage(-1)">Previous</button>
+         <button class="tut-btn" onclick="closeModal('tutorial-modal')">Close</button>
+         <button class="tut-btn primary" id="btn-next" onclick="changeTutorialPage(1)">Next</button>
       </div>
     </div>
   </div>
@@ -305,10 +252,10 @@ let client = null;
 let currentCameraUrl = "";
 let myDeviceName = "Unknown";
 let deviceState = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 }; 
-let ledState = 0; // 0 = OFF, 255 = ON
 let pendingId = null; 
 let pendingState = null;
 let lockTimer = 0; 
+let currentTutPage = 0;
 
 // ================= INITIALIZATION =================
 window.onload = () => {
@@ -326,6 +273,108 @@ window.onload = () => {
     connectSystem();
   }
 };
+
+// ================= TUTORIAL DATA & LOGIC =================
+const tutorialData = [
+    {
+        title: "1. MAIN CONTROLS",
+        content: `
+            <p style="font-size:13px; color:#555;">This dashboard controls the Smart Mezza power distribution unit.</p>
+            
+            <div class="tut-step">
+                <b>Master Power (System Bus)</b><br>
+                This is the main breaker. If this is <b>OFF</b>, all other switches are locked and disabled for safety. You must turn this ON first.
+            </div>
+
+            <div class="tut-step">
+                <b>Control Panel</b><br>
+                Contains 8 relays (Printers, LEDs, etc.). Click to toggle.
+                <ul>
+                    <li><b>Green:</b> Device is ON.</li>
+                    <li><b>Red:</b> Device is OFF.</li>
+                </ul>
+            </div>
+
+            <div class="tut-warn">⚠️ SAFETY LOCK: Turning OFF the Master Power requires you to type "CONFIRM".</div>
+        `
+    },
+    {
+        title: "2. SETTING UP CAMERA",
+        content: `
+            <p style="font-size:12px; color:#555;">Follow these steps on a PC connected to the same WiFi as the ESP32.</p>
+        
+            <div class="tut-step">
+                <b>Step A: Download Tool</b><br>
+                Download <a href="https://github.com/cloudflare/cloudflared/releases" target="_blank">cloudflared-windows-amd64.exe</a> and rename it to <code>cloudflared.exe</code>.
+            </div>
+        
+            <div class="tut-step">
+                <b>Step B: Run Command</b><br>
+                Open CMD in that folder and run:<br>
+                <code class="code-block">cloudflared tunnel --url http://192.168.1.50:80</code>
+            </div>
+
+            <div class="tut-step">
+                <b>Step C: Link It</b><br>
+                Copy the link ending in <code>.trycloudflare.com</code>.<br>
+                Click the <b>⚙️ Gear Icon</b> in this app and paste it.
+            </div>
+        `
+    },
+    {
+        title: "3. ACTIVITY LOGS",
+        content: `
+            <p style="font-size:13px; color:#555;">The system tracks every action taken by any user.</p>
+
+            <div class="tut-step">
+                <b>What is Logged?</b><br>
+                Every time a button is pressed, the system records:
+                <ul>
+                    <li><b>Time:</b> When it happened.</li>
+                    <li><b>By:</b> The "Device Name" of the user who clicked it.</li>
+                    <li><b>Action:</b> ON or OFF.</li>
+                    <li><b>Target:</b> Which device was toggled.</li>
+                </ul>
+            </div>
+
+            <div class="tut-step">
+                <b>Syncing</b><br>
+                These logs are broadcasted to everyone currently online. If "Red's Phone" turns on a light, your screen will instantly update the log to show that action.
+            </div>
+        `
+    }
+];
+
+function renderTutorial() {
+    const data = tutorialData[currentTutPage];
+    document.getElementById("tut-title-text").innerText = data.title;
+    document.getElementById("tut-content-area").innerHTML = data.content;
+    document.getElementById("tut-page-indicator").innerText = `${currentTutPage + 1}/${tutorialData.length}`;
+
+    // Manage Button States
+    const prevBtn = document.getElementById("btn-prev");
+    const nextBtn = document.getElementById("btn-next");
+
+    prevBtn.disabled = (currentTutPage === 0);
+    prevBtn.style.opacity = (currentTutPage === 0) ? "0.3" : "1";
+
+    if (currentTutPage === tutorialData.length - 1) {
+        nextBtn.innerText = "Finish";
+    } else {
+        nextBtn.innerText = "Next";
+    }
+}
+
+function changeTutorialPage(dir) {
+    if (dir === 1 && currentTutPage === tutorialData.length - 1) {
+        closeModal('tutorial-modal');
+        return;
+    }
+    currentTutPage += dir;
+    if (currentTutPage < 0) currentTutPage = 0;
+    if (currentTutPage >= tutorialData.length) currentTutPage = tutorialData.length - 1;
+    renderTutorial();
+}
 
 // ================= DYNAMIC CAMERA SYSTEM =================
 function saveConfig() {
@@ -357,52 +406,6 @@ function updateCameraSource(url) {
     currentCameraUrl = url;
     const cam = document.getElementById("cam-stream");
     cam.src = url; 
-}
-
-// ================= NEW LED BUTTON LOGIC =================
-function toggleLed() {
-    // Toggle State (If 0 -> 255, If >0 -> 0)
-    ledState = (ledState === 0) ? 255 : 0;
-    sendLedCommand(ledState);
-}
-
-function sendLedCommand(val) {
-    // 1. Update UI Immediately
-    updateLedUi(val);
-
-    // 2. Send Command using the "Image Trick" (Bypasses Security Blocks)
-    if(currentCameraUrl) {
-        const baseUrl = currentCameraUrl.replace("/stream", "");
-        // Clean trailing slash just in case
-        const cleanUrl = baseUrl.replace(/\/$/, ""); 
-        
-        // Create an invisible image to trigger the command
-        const cmdImg = new Image();
-        cmdImg.src = cleanUrl + "/led?val=" + val + "&t=" + new Date().getTime();
-    }
-
-    // 3. Sync with MQTT
-    if(client && client.isConnected()) {
-        const payload = JSON.stringify({val: val, by: myDeviceName});
-        const msg = new Paho.MQTT.Message(payload);
-        msg.destinationName = "/printer_01/led";
-        msg.retained = true; 
-        client.send(msg);
-    }
-}
-
-function updateLedUi(val) {
-    ledState = Number(val);
-    const btn = document.getElementById("led-toggle-btn");
-    const txt = document.getElementById("led-txt");
-    
-    if(ledState > 0) {
-        btn.classList.add("active");
-        txt.innerText = "LIGHT ON";
-    } else {
-        btn.classList.remove("active");
-        txt.innerText = "LIGHT OFF";
-    }
 }
 
 function renderRelays() {
@@ -484,7 +487,6 @@ function connectSystem() {
       client.subscribe("/printer_01/status");
       client.subscribe("/printer_01/logs"); 
       client.subscribe("/printer_01/sync");
-      client.subscribe("/printer_01/led");
       client.subscribe("/printer_01/config/camera");
     },
     onFailure: (e) => alert("Connection Failed: " + e.errorMessage)
@@ -502,13 +504,6 @@ function onMessage(m) {
   if (topic === "/printer_01/logs") {
     try { displayLog(JSON.parse(payload)); } catch(e) {}
     return;
-  }
-  if (topic === "/printer_01/led") {
-      try {
-          const d = JSON.parse(payload);
-          updateLedUi(d.val);
-      } catch(e) {}
-      return;
   }
   if (topic === "/printer_01/sync") {
     try {
@@ -630,7 +625,14 @@ function sendCommand(id, state) {
   broadcastLog(state ? "ON" : "OFF", getDeviceName(id));
 }
 
-function openModal(id) { document.getElementById(id).style.display = "flex"; }
+function openModal(id) { 
+    if(id === 'tutorial-modal') {
+        currentTutPage = 0;
+        renderTutorial();
+    }
+    document.getElementById(id).style.display = "flex"; 
+}
+
 function closeModal(id) { 
   if(!id) id = "confirm-modal"; 
   document.getElementById(id).style.display = "none"; 
