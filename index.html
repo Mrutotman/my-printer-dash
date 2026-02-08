@@ -83,7 +83,7 @@
 
     /* Tutorial Styles */
     .tut-header { border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-bottom: 15px; color: #333; display: flex; justify-content: space-between; align-items: center;}
-    .tut-section { margin-bottom: 20px; min-height: 200px; }
+    .tut-section { flex: 1; margin-bottom: 0; min-height: auto;}
     .tut-step { background: #f9f9f9; padding: 10px; border-left: 4px solid var(--primary); margin-bottom: 10px; border-radius: 0 5px 5px 0; font-size: 13px; color: #444; }
     .code-block { background: #333; color: #0f0; padding: 8px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 11px; display: block; margin: 5px 0; overflow-x: auto; white-space: nowrap; }
     .tut-warn { color: #d32f2f; font-weight: bold; font-size: 12px; background: #ffebee; padding: 5px; border-radius: 4px; }
@@ -96,16 +96,21 @@
     
     /* Tutorial Image */
     .tut-img { 
-        width: 100%; 
+        width: 250px;               /* Fixed width for the image column */
+        flex-shrink: 0;             /* Prevent image from being squished */
+        height: auto;               /* Maintain aspect ratio */
+        object-fit: contain;        /* Ensure image fits nicely */
         border-radius: 8px; 
-        margin-bottom: 15px; 
         border: 1px solid #ddd;
-        display: block;
     }
     .tut-content-scroll {
-        max-height: 400px;
-        overflow-y: auto;
+        display: flex;              /* Enables side-by-side layout */
+        flex-direction: row;        /* Row orientation */
+        gap: 20px;                  /* Space between image and text */
+        max-height: 500px;          /* Increased height slightly */
+        overflow-y: auto;           /* Scrollbar if content is very long */
         padding-right: 10px;
+        align-items: flex-start;    /* Align items to the top */
     }
     /* Config Buttons */
     #config-btn { position: fixed; bottom: 140px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #555; color: white; font-weight: bold; font-size: 20px; border: 1px solid #777; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; }
@@ -115,11 +120,14 @@
     footer { position: fixed; bottom: 0; width: 100%; background: #333; color: white; padding: 15px 0; display: flex; justify-content: space-around; font-size: 12px; }
 
     @media (max-width: 700px) {
-      .container { flex-direction: column; }
-      .sidebar, .main-content { width: 100%; }
-      .pzem-grid { grid-template-columns: 1fr 1fr; }
-      #help-btn { bottom: 90px; left: 15px; } 
-      #config-btn { bottom: 150px; left: 15px; }
+      .tut-content-scroll {
+         flex-direction: column; /* Stack them back up */
+      }
+      .tut-img {
+         width: 100%; /* Full width image on mobile */
+         max-width: none;
+         margin-bottom: 15px;
+      }
     }
 
   </style>
