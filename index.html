@@ -36,7 +36,7 @@
     .btn-on { background: #e8f5e9; color: var(--primary); border: 1px solid var(--primary); }
     .btn-off { background: #ffebee; color: var(--danger); border: 1px solid var(--danger); }
 
-    /* --- CAMERA BOX (Snapshot Mode - Image Tag) --- */
+    /* --- CAMERA BOX (Simple Image Stream) --- */
     .camera-box { 
         background: black; 
         width: 100%; 
@@ -51,15 +51,11 @@
     }
 
     img#cam-stream {
-        width: 1280px;
-        height: 720px;
-        border: none;
-        position: absolute;
-        top: 0;
-        left: 0;
-        visibility: hidden; 
-        transform-origin: top left;
-        object-fit: contain;
+        width: 100%;
+        height: 100%;
+        object-fit: contain; /* Perfect scaling automatically */
+        transform: rotate(180deg); /* Flip it */
+        display: none; /* Hidden until loaded */
     }
 
     .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; }
@@ -140,10 +136,10 @@
 
       <div class="main-content">
         <div class="card">
-          <h3>LIVE FEED (Fixed Multi-User)</h3>
+          <h3>LIVE FEED (Direct Stream)</h3>
           
-          <div class="camera-box" id="cam-container">
-            <img id="cam-stream" src="" alt="Live Feed">
+          <div class="camera-box">
+            <img id="cam-stream" src="" alt="Live Feed" onload="this.style.display='block'; document.getElementById('cam-msg').style.display='none';">
             
             <div id="cam-msg" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#555; z-index:5;">
                 <span id="cam-status-text" style="font-size:16px; font-weight:bold;">CONNECTING...</span>
@@ -193,7 +189,7 @@
   <div id="tutorial-modal" class="modal-overlay">
     <div class="modal-box">
       <h3 style="color:#333;">SYSTEM GUIDE</h3>
-      <p style="font-size:13px; text-align:left;"><b>1. Camera:</b><br>URL is hardcoded. Using Snapshot mode to allow multiple viewers.</p>
+      <p style="font-size:13px; text-align:left;"><b>1. Camera:</b><br>Hardcoded Stream. Works for 1 user at a time.</p>
       <button class="btn btn-on" onclick="closeModal('tutorial-modal')">GOT IT</button>
     </div>
   </div>
@@ -212,8 +208,8 @@
 
 <script>
 // ================= HARDCODED URL =================
-// Note: We use the BASE link (no /stream)
-const FIXED_CAMERA_BASE = "https://continuous-mesh-associations-remainder.trycloudflare.com";
+// Note: We use the EXACT link you verified
+const FIXED_CAMERA_URL = "https://continuous-mesh-associations-remainder.trycloudflare.com/stream";
 
 const MQTT_HOST = "143fa294384e4a2fa42c7bfe8a7ebd1d.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884;
@@ -221,39 +217,11 @@ const CLIENT_ID = "web_" + Math.random().toString(16).substr(2, 8);
 const LABELS = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
 let client = null;
-let streamInterval = null;
 let myDeviceName = "Unknown";
 let deviceState = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 }; 
 let pendingId = null; 
 let pendingState = null;
 let lockTimer = 0; 
-
-// ================= AUTO-FIT ENGINE =================
-function fitCamera() {
-    const container = document.getElementById("cam-container");
-    const img = document.getElementById("cam-stream");
-    if(!container || !img) return;
-
-    const nativeW = 1280;
-    const nativeH = 720;
-    const availableWidth = container.clientWidth;
-    const scale = availableWidth / nativeW;
-
-    container.style.height = (nativeH * scale) + "px";
-
-    img.style.position = "absolute";
-    img.style.width = nativeW + "px";
-    img.style.height = nativeH + "px";
-    
-    img.style.left = "50%";
-    img.style.top = "50%";
-    
-    img.style.transform = `translate(-50%, -50%) rotate(180deg) scale(${scale})`;
-    img.style.transformOrigin = "center center";
-    img.style.visibility = "visible";
-}
-
-window.addEventListener('resize', fitCamera);
 
 // ================= INITIALIZATION =================
 window.onload = () => {
@@ -277,21 +245,9 @@ window.onload = () => {
 function startCamera() {
     const cam = document.getElementById("cam-stream");
     if(cam) {
-        console.log("Starting Snapshot Mode: " + FIXED_CAMERA_BASE);
-        
-        // 1. Force VGA Resolution (Faster)
-        fetch(FIXED_CAMERA_BASE + "/control?var=framesize&val=6").catch(e=>{});
-
-        document.getElementById("cam-msg").style.display = 'none';
-        
-        // 2. Start the Loop (Fetch photo every 400ms)
-        if(streamInterval) clearInterval(streamInterval);
-        streamInterval = setInterval(() => {
-            // Add timestamp to prevent browser caching
-            cam.src = FIXED_CAMERA_BASE + "/capture?t=" + new Date().getTime();
-        }, 400); 
-
-        setTimeout(fitCamera, 500);
+        console.log("Loading Camera: " + FIXED_CAMERA_URL);
+        // Simple direct assignment
+        cam.src = FIXED_CAMERA_URL;
     }
 }
 
@@ -300,8 +256,9 @@ function updateLed(val) {
     const percent = Math.round((val / 255) * 100);
     document.getElementById("led-val").innerText = percent + "%";
 
-    // Send to Cloudflare URL
-    fetch(FIXED_CAMERA_BASE + "/led?val=" + val).catch(e => {});
+    // Send to Cloudflare URL (Base URL + LED command)
+    const baseUrl = "https://continuous-mesh-associations-remainder.trycloudflare.com";
+    fetch(baseUrl + "/led?val=" + val).catch(e => {});
 
     if(client && client.isConnected()) {
         const payload = JSON.stringify({val: val, by: myDeviceName});
