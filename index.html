@@ -202,7 +202,7 @@
           <div class="log-list">
             <table class="log-table">
               <thead>
-                <tr><th>Time</th><th>By</th><th>Action</th><th>Target</th></tr>
+                <tr><th>Date</th><th>Time</th><th>By</th><th>Action</th><th>Target</th></tr>
               </thead>
               <tbody id="log-body"></tbody>
             </table>
@@ -517,7 +517,13 @@ function saveLog(logData) {
 }
 
 function broadcastLog(action, target) {
-  const logData = { time: new Date().toLocaleTimeString(), by: myDeviceName, action: action, target: target };
+  const logData = { 
+    date: new Date().toLocaleDateString(),
+    time: new Date().toLocaleTimeString(), 
+    by: myDeviceName, 
+    action: action, 
+    target: target 
+  };
   const message = new Paho.MQTT.Message(JSON.stringify(logData));
   message.destinationName = "/printer_01/logs"; 
   client.send(message);
@@ -529,10 +535,17 @@ function displayLog(data) {
 }
 
 function appendLogRow(data) {
-    const tbody = document.getElementById("log-body");
-    const row = `<tr><td>${data.time}</td><td style="color:#666; font-weight:bold;">${data.by}</td><td>${data.action}</td><td>${data.target}</td></tr>`;
-    tbody.insertAdjacentHTML("afterbegin", row);
-    if (tbody.rows.length > 50) tbody.deleteRow(50);
+  const tbody = document.getElementById("log-body");
+  const rowDate = data.date || "---";
+  const row = `<tr>
+    <td>${rowDate}</td>
+    <td>${data.time}</td>
+    <td style="color:#666; font-weight:bold;">${data.by}</td>
+    <td>${data.action}</td>
+    <td>${data.target}</td>
+  </tr>`;
+  tbody.insertAdjacentHTML("afterbegin", row);
+  if (tbody.rows.length > 50) tbody.deleteRow(50);
 }
 
 // ================= MQTT CONNECTION =================
