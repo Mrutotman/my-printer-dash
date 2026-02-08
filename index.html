@@ -36,7 +36,7 @@
     .btn-on { background: #e8f5e9; color: var(--primary); border: 1px solid var(--primary); }
     .btn-off { background: #ffebee; color: var(--danger); border: 1px solid var(--danger); }
 
-    /* --- CAMERA BOX (Simple Image Stream) --- */
+    /* --- CAMERA BOX --- */
     .camera-box { 
         background: black; 
         width: 100%; 
@@ -53,9 +53,9 @@
     img#cam-stream {
         width: 100%;
         height: 100%;
-        object-fit: contain; /* Perfect scaling automatically */
-        transform: rotate(180deg); /* Flip it */
-        display: none; /* Hidden until loaded */
+        object-fit: contain; 
+        transform: rotate(180deg);
+        display: none; 
     }
 
     .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; }
@@ -81,6 +81,8 @@
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center; }
     .modal-box { background: white; padding: 25px; border-radius: 10px; width: 300px; text-align: center; }
     
+    /* Config Buttons */
+    #config-btn { position: fixed; bottom: 140px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #555; color: white; font-weight: bold; font-size: 20px; border: 1px solid #777; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; }
     #help-btn { position: fixed; bottom: 80px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 20px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; transition: 0.3s; }
     #help-btn:active { transform: scale(0.9); }
 
@@ -90,6 +92,7 @@
       .container { flex-direction: column; }
       .sidebar, .main-content { width: 100%; }
       #help-btn { bottom: 90px; left: 15px; } 
+      #config-btn { bottom: 150px; left: 15px; }
     }
   </style>
 </head>
@@ -136,13 +139,14 @@
 
       <div class="main-content">
         <div class="card">
-          <h3>LIVE FEED (Direct Stream)</h3>
+          <h3>LIVE FEED (Auto-Synced)</h3>
           
           <div class="camera-box">
             <img id="cam-stream" src="" alt="Live Feed" onload="this.style.display='block'; document.getElementById('cam-msg').style.display='none';">
             
             <div id="cam-msg" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#555; z-index:5;">
-                <span id="cam-status-text" style="font-size:16px; font-weight:bold;">CONNECTING...</span>
+                <span id="cam-status-text" style="font-size:16px; font-weight:bold;">WAITING FOR LINK...</span>
+                <span style="font-size:10px;">Click ⚙️ to set Cloudflare Link</span>
             </div>
 
             <div class="slider-container">
@@ -177,6 +181,7 @@
       </div>
     </div>
 
+    <button id="config-btn" onclick="openModal('config-modal')">⚙️</button>
     <button id="help-btn" onclick="openModal('tutorial-modal')">?</button>
 
     <footer>
@@ -186,10 +191,22 @@
     </footer>
   </div>
 
+  <div id="config-modal" class="modal-overlay">
+    <div class="modal-box">
+      <h3 style="color:#333;">CAMERA SETTINGS</h3>
+      <p style="font-size:12px; color:#666;">Paste your new Cloudflare link here:</p>
+      <input type="text" id="stream-input" class="input-field" placeholder="https://xxxx.trycloudflare.com">
+      <div style="display:flex; gap:10px; margin-top:15px;">
+        <button class="btn btn-on" onclick="saveConfig()">SAVE & SYNC</button>
+        <button class="btn btn-off" style="background:#ddd; color:#333; border:1px solid #ccc;" onclick="closeModal('config-modal')">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
   <div id="tutorial-modal" class="modal-overlay">
     <div class="modal-box">
       <h3 style="color:#333;">SYSTEM GUIDE</h3>
-      <p style="font-size:13px; text-align:left;"><b>1. Camera:</b><br>Hardcoded Stream. Works for 1 user at a time.</p>
+      <p style="font-size:13px; text-align:left;"><b>1. Update Camera:</b><br>Click ⚙️ button and paste new Cloudflare link.</p>
       <button class="btn btn-on" onclick="closeModal('tutorial-modal')">GOT IT</button>
     </div>
   </div>
@@ -207,16 +224,14 @@
   </div>
 
 <script>
-// ================= HARDCODED URL =================
-// Note: We use the EXACT link you verified
-const FIXED_CAMERA_URL = "https://continuous-mesh-associations-remainder.trycloudflare.com/stream";
-
+// ================= CONFIGURATION =================
 const MQTT_HOST = "143fa294384e4a2fa42c7bfe8a7ebd1d.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884;
 const CLIENT_ID = "web_" + Math.random().toString(16).substr(2, 8);
 const LABELS = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
 let client = null;
+let currentCameraUrl = "";
 let myDeviceName = "Unknown";
 let deviceState = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 }; 
 let pendingId = null; 
@@ -238,17 +253,42 @@ window.onload = () => {
     if(d) document.getElementById("device-name").value = d;
     connectSystem();
   }
-  
-  startCamera();
 };
 
-function startCamera() {
-    const cam = document.getElementById("cam-stream");
-    if(cam) {
-        console.log("Loading Camera: " + FIXED_CAMERA_URL);
-        // Simple direct assignment
-        cam.src = FIXED_CAMERA_URL;
+// ================= DYNAMIC CAMERA SYSTEM =================
+function saveConfig() {
+    let newUrl = document.getElementById("stream-input").value.trim();
+    if(newUrl.endsWith("/")) newUrl = newUrl.slice(0, -1); // Remove trailing slash
+    
+    // Auto-fix URL format if user forgets /stream
+    if(!newUrl.includes("/stream")) {
+         newUrl += "/stream";
     }
+
+    if(!newUrl.startsWith("https://")) {
+        alert("Link must start with https://");
+        return;
+    }
+
+    if(client && client.isConnected()) {
+        const msg = new Paho.MQTT.Message(newUrl);
+        msg.destinationName = "/printer_01/config/camera";
+        msg.retained = true; // SAVE IT FOREVER
+        client.send(msg);
+        alert("Link Saved & Synced to All Devices!");
+        closeModal('config-modal');
+    } else {
+        alert("Not connected to System. Login first.");
+    }
+}
+
+function updateCameraSource(url) {
+    if(!url || url === currentCameraUrl) return;
+    currentCameraUrl = url;
+    console.log("New Camera URL Received: " + url);
+    
+    const cam = document.getElementById("cam-stream");
+    cam.src = url; 
 }
 
 // ================= LED CONTROL =================
@@ -256,9 +296,12 @@ function updateLed(val) {
     const percent = Math.round((val / 255) * 100);
     document.getElementById("led-val").innerText = percent + "%";
 
-    // Send to Cloudflare URL (Base URL + LED command)
-    const baseUrl = "https://continuous-mesh-associations-remainder.trycloudflare.com";
-    fetch(baseUrl + "/led?val=" + val).catch(e => {});
+    // Try to send to current Cloudflare URL if known
+    if(currentCameraUrl) {
+        // Strip /stream to get base URL
+        const baseUrl = currentCameraUrl.replace("/stream", "");
+        fetch(baseUrl + "/led?val=" + val).catch(e => {});
+    }
 
     if(client && client.isConnected()) {
         const payload = JSON.stringify({val: val, by: myDeviceName});
@@ -349,8 +392,7 @@ function connectSystem() {
       client.subscribe("/printer_01/logs"); 
       client.subscribe("/printer_01/sync");
       client.subscribe("/printer_01/led");
-      
-      startCamera();
+      client.subscribe("/printer_01/config/camera"); // LISTEN FOR URL
     },
     onFailure: (e) => alert("Connection Failed: " + e.errorMessage)
   });
@@ -359,6 +401,12 @@ function connectSystem() {
 function onMessage(m) {
   const topic = m.destinationName;
   const payload = m.payloadString;
+
+  // HANDLE CAMERA URL UPDATE
+  if (topic === "/printer_01/config/camera") {
+      updateCameraSource(payload);
+      return;
+  }
 
   if (topic === "/printer_01/logs") {
     try { displayLog(JSON.parse(payload)); } catch(e) {}
