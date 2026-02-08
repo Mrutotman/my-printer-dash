@@ -270,6 +270,7 @@ function saveConfig() {
     let newUrl = document.getElementById("stream-input").value.trim();
     if(newUrl.endsWith("/")) newUrl = newUrl.slice(0, -1);
     
+    // Ensure we have /stream for the video
     if(!newUrl.includes("/stream")) newUrl += "/stream";
 
     if(!newUrl.startsWith("https://")) {
@@ -308,9 +309,10 @@ function sendLedCommand(val) {
     // Update UI immediately
     updateLedUi(val);
 
-    // Send HTTP (Cloudflare)
+    // Send Original ESP32 Camera Command (HTTP via Cloudflare)
     if(currentCameraUrl) {
         const baseUrl = currentCameraUrl.replace("/stream", "");
+        // FIXED: REVERTED TO /led?val=... because this worked for you before
         fetch(baseUrl + "/led?val=" + val).catch(e => {});
     }
 
@@ -439,7 +441,6 @@ function onMessage(m) {
   if (topic === "/printer_01/led") {
       try {
           const d = JSON.parse(payload);
-          // Always update UI even if it's me (for sync)
           updateLedUi(d.val);
       } catch(e) {}
       return;
