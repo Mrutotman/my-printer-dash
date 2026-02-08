@@ -36,11 +36,11 @@
     .btn-on { background: #e8f5e9; color: var(--primary); border: 1px solid var(--primary); }
     .btn-off { background: #ffebee; color: var(--danger); border: 1px solid var(--danger); }
 
-    /* --- CAMERA BOX STYLES (Auto-Scale) --- */
+    /* --- CAMERA BOX (Snapshot Mode) --- */
     .camera-box { 
         background: black; 
         width: 100%; 
-        aspect-ratio: 16/9; /* Initial placeholder ratio */
+        aspect-ratio: 16/9; 
         display: flex; 
         align-items: center; 
         justify-content: center; 
@@ -50,16 +50,17 @@
         overflow: hidden; 
     }
 
-    /* The iframe is forced to 1280x720, then shrunk by JS */
-    iframe#cam-stream {
+    /* Changed from IFRAME to IMG for multi-user support */
+    img#cam-stream {
         width: 1280px;
         height: 720px;
         border: none;
         position: absolute;
         top: 0;
         left: 0;
-        visibility: hidden; /* Hidden until calculated */
+        visibility: hidden; 
         transform-origin: top left;
+        object-fit: contain; /* Ensures photo fits nicely */
     }
 
     .pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; }
@@ -85,11 +86,8 @@
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center; }
     .modal-box { background: white; padding: 25px; border-radius: 10px; width: 300px; text-align: center; }
     
-    /* Config Button */
     #config-btn { position: fixed; bottom: 140px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #555; color: white; font-weight: bold; font-size: 20px; border: 1px solid #777; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; }
-
     #help-btn { position: fixed; bottom: 80px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 20px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; transition: 0.3s; }
-    #help-btn:active { transform: scale(0.9); }
 
     footer { position: fixed; bottom: 0; width: 100%; background: #333; color: white; padding: 15px 0; display: flex; justify-content: space-around; font-size: 12px; }
 
@@ -110,7 +108,6 @@
       <input type="password" id="mqtt-pass" class="input-field" placeholder="HiveMQ Password">
       <hr style="border: 0; border-top: 1px solid #444; margin: 15px 0;">
       <input type="text" id="device-name" class="input-field" placeholder="Device Name (e.g. Red's Phone)">
-      
       <div style="font-size:12px; text-align:left; margin-top:5px;">
         <input type="checkbox" id="remember-me"> Remember Me
       </div>
@@ -145,10 +142,10 @@
 
       <div class="main-content">
         <div class="card">
-          <h3>LIVE FEED (1280x720)</h3>
+          <h3>LIVE FEED (Multi-User Mode)</h3>
           
           <div class="camera-box" id="cam-container">
-            <iframe id="cam-stream" src="" allow="autoplay"></iframe>
+            <img id="cam-stream" src="" alt="Live Feed">
             
             <div id="cam-msg" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#555; z-index:5;">
                 <span id="cam-status-text" style="font-size:16px; font-weight:bold;">WAITING FOR URL...</span>
@@ -213,7 +210,7 @@
     <div class="modal-box">
       <h3 style="color:#333;">SYSTEM GUIDE</h3>
       <p style="font-size:13px; text-align:left;"><b>1. Update Camera:</b><br>Click ⚙️ button and paste new Camera link.</p>
-      <p style="font-size:13px; text-align:left;"><b>2. Control Panel:</b><br>Toggle individual devices. Locked if Master is OFF.</p>
+      <p style="font-size:13px; text-align:left;"><b>2. Multi-User:</b><br>This version uses snapshots so multiple people can watch at once.</p>
       <button class="btn btn-on" onclick="closeModal('tutorial-modal')">GOT IT</button>
     </div>
   </div>
@@ -238,6 +235,7 @@ const CLIENT_ID = "web_" + Math.random().toString(16).substr(2, 8);
 const LABELS = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "LED", "Free 1", "Free 2", "Free 3"];
 
 let CURRENT_STREAM_URL = ""; 
+let streamInterval = null; // Store the timer
 let client = null;
 let myDeviceName = "Unknown";
 let deviceState = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 }; 
@@ -248,8 +246,8 @@ let lockTimer = 0;
 // ================= AUTO-FIT ENGINE (Center Pivot) =================
 function fitCamera() {
     const container = document.getElementById("cam-container");
-    const iframe = document.getElementById("cam-stream");
-    if(!container || !iframe) return;
+    const img = document.getElementById("cam-stream");
+    if(!container || !img) return;
 
     const nativeW = 1280;
     const nativeH = 720;
@@ -264,21 +262,20 @@ function fitCamera() {
     container.style.height = (nativeH * scale) + "px";
 
     // --- CENTERING LOGIC ---
-    iframe.style.position = "absolute";
-    iframe.style.width = nativeW + "px";
-    iframe.style.height = nativeH + "px";
+    img.style.position = "absolute";
+    img.style.width = nativeW + "px";
+    img.style.height = nativeH + "px";
     
     // 1. Force the video to the middle of the box
-    iframe.style.left = "50%";
-    iframe.style.top = "50%";
+    img.style.left = "50%";
+    img.style.top = "50%";
     
     // 2. Apply Transform: Center it -> Rotate it -> Shrink it
-    // translate(-50%, -50%) ensures it pivots perfectly from the center
-    iframe.style.transform = `translate(-50%, -50%) rotate(180deg) scale(${scale})`;
-    iframe.style.transformOrigin = "center center";
+    img.style.transform = `translate(-50%, -50%) rotate(180deg) scale(${scale})`;
+    img.style.transformOrigin = "center center";
     
     // Show the video
-    iframe.style.visibility = "visible";
+    img.style.visibility = "visible";
 }
 
 // Re-calculate size if user resizes window
@@ -300,7 +297,6 @@ window.onload = () => {
     connectSystem();
   }
   
-  // Run fitCamera a moment after load to ensure layout is ready
   setTimeout(fitCamera, 500);
 };
 
@@ -326,18 +322,29 @@ function saveConfig() {
     }
 }
 
+// ================= NEW: SNAPSHOT MODE HANDLER =================
 function updateCameraSource(baseUrl) {
     if(!baseUrl) return;
     CURRENT_STREAM_URL = baseUrl;
-    const streamUrl = baseUrl + "/stream";
-    console.log("Updating Stream to: " + streamUrl);
-    
+    console.log("Starting Multi-User Snapshot Mode: " + baseUrl);
+
+    // 1. Optimize Resolution (Force VGA 640x480 for speed)
+    // We send this command once to ensure snapshots are fast
+    fetch(baseUrl + "/control?var=framesize&val=6").catch(e=>{});
+
     const cam = document.getElementById("cam-stream");
-    cam.src = streamUrl;
-    
     document.getElementById("cam-msg").style.display = 'none';
     
-    // Recalculate size because the new source might load differently
+    // Clear any old timer
+    if(streamInterval) clearInterval(streamInterval);
+
+    // 2. Start the Loop (Fetch new photo every 500ms)
+    // This allows multiple people to query the ESP32 without blocking it
+    streamInterval = setInterval(() => {
+        // We add a timestamp (?t=...) to force the browser to ignore cache
+        cam.src = baseUrl + "/capture?t=" + new Date().getTime();
+    }, 500); // 500ms = 2 frames per second (Safe for ESP32)
+    
     setTimeout(fitCamera, 200);
 }
 
@@ -347,7 +354,7 @@ function updateLed(val) {
     document.getElementById("led-val").innerText = percent + "%";
 
     if(CURRENT_STREAM_URL) {
-        fetch(CURRENT_STREAM_URL + "/led?val=" + val).catch(e => console.log("LED Error (Offline?)"));
+        fetch(CURRENT_STREAM_URL + "/led?val=" + val).catch(e => {});
     }
 
     if(client && client.isConnected()) {
@@ -441,7 +448,6 @@ function connectSystem() {
       client.subscribe("/printer_01/led");
       client.subscribe("/printer_01/config/camera");
       
-      // Camera might need to refit once visible
       setTimeout(fitCamera, 1000);
     },
     onFailure: (e) => alert("Connection Failed: " + e.errorMessage)
