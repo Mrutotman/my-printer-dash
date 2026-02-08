@@ -321,7 +321,22 @@ window.onload = () => {
 // ================= TUTORIAL DATA & LOGIC =================
 const tutorialData = [
         {
-          title: "1. MAIN HOST: ESP32",
+          title: "1. SYSTEM ARCHITECTURE",
+          // Replace with your actual image path (e.g., "img/layout.png")
+          img: "https://via.placeholder.com/600x300/4CAF50/ffffff?text=Dashboard+Layout+Overview", 
+          content: `
+              <p>Welcome to the <b>Smart Mezza Control System</b>. This interface communicates via MQTT to your ESP32 controller at the PUP EE Laboratory.</p>
+              <div class="tut-step">
+                  <b>Master Power (System Bus):</b> This is the gatekeeper. When OFF, it physically disconnects the relay bank. No device that is connected to relay can be toggled unless this is ON.
+              </div>
+              <div class="tut-step">
+                  <b>Real-Time Sync:</b> If another user (e.g., on a different phone) toggles a switch, your dashboard updates automatically within 200ms.
+              </div>
+          `
+        },
+  
+        {
+          title: "2. MAIN HOST: ESP32",
           img: "https://via.placeholder.com/600x300/2d2d2d/ffffff?text=ESP32+Pinout+&+Relay+Logic",
           content: `
               <p>The brain of the Smart Mezza is an <b>ESP32 DevKit V1</b>. It manages the relay logic, sensor data, and MQTT communication.</p>
@@ -336,7 +351,7 @@ const tutorialData = [
       },
   
       {
-        title: "2. LIVE FEED: ESP32-CAM",
+        title: "3. LIVE FEED: ESP32-CAM",
         img: "https://via.placeholder.com/600x300/1a1a1a/ffffff?text=ESP32-CAM+Wiring+&+Power",
         content: `
             <p>A separate <b>ESP32-CAM</b> module provides the live video stream of the 3D printer bed.</p>
@@ -353,20 +368,6 @@ const tutorialData = [
     },
   
     {
-        title: "3. SYSTEM ARCHITECTURE",
-        // Replace with your actual image path (e.g., "img/layout.png")
-        img: "https://via.placeholder.com/600x300/4CAF50/ffffff?text=Dashboard+Layout+Overview", 
-        content: `
-            <p>Welcome to the <b>Smart Mezza Control System</b>. This interface communicates via MQTT to your ESP32 controller at the PUP EE Laboratory.</p>
-            <div class="tut-step">
-                <b>Master Power (System Bus):</b> This is the gatekeeper. When OFF, it physically disconnects the relay bank. No device that is connected to relay can be toggled unless this is ON.
-            </div>
-            <div class="tut-step">
-                <b>Real-Time Sync:</b> If another user (e.g., on a different phone) toggles a switch, your dashboard updates automatically within 200ms.
-            </div>
-        `
-    },
-    {
         title: "4. SAFETY & SHUTDOWN",
         img: "https://via.placeholder.com/600x300/f44336/ffffff?text=Two-Step+Shutdown+Logic",
         content: `
@@ -377,6 +378,7 @@ const tutorialData = [
             <div class="tut-warn">⚠️ WARNING: Killing the Master Power during an active print will cause the hotend to stop cooling immediately, which may cause heat creep/clogging.</div>
         `
     },
+  
     {
         title: "5. CLOUD CAMERA SETUP",
         img: "https://via.placeholder.com/600x300/333333/ffffff?text=Cloudflare+Tunnel+Guide",
@@ -391,6 +393,7 @@ const tutorialData = [
             </div>
         `
     },
+  
     {
         title: "6. POWER MONITORING",
         img: "https://via.placeholder.com/600x300/2196F3/ffffff?text=PZEM-004T+Data+Reading",
@@ -403,6 +406,7 @@ const tutorialData = [
             </ul>
         `
     },
+  
     {
         title: "7. ACTIVITY AUDITING",
         img: "https://via.placeholder.com/600x300/777777/ffffff?text=Security+Activity+Logs",
