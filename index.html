@@ -583,7 +583,6 @@ function connectSystem() {
     onFailure: (e) => alert("Connection Failed: " + e.errorMessage)
   });
 }
-
 function onMessage(m) {
   const topic = m.destinationName;
   const payload = m.payloadString;
@@ -596,20 +595,21 @@ function onMessage(m) {
     try { displayLog(JSON.parse(payload)); } catch(e) {}
     return;
   }
-  if (topic === "/printer_01/sync") {
-    try {
-      const s = JSON.parse(payload);
-      if(s.by !== myDeviceName) updateState(s.relay, s.state);
-    } catch(e) {}
-    return;
-  }
-
-  if (Date.now() < lockTimer) return;
-
+  
   try {
     const d = JSON.parse(payload);
+    
+    // FIX: Only apply the lockTimer if the message ISN'T about the Master (ID 9)
+    if (Date.now() < lockTimer && d.master === undefined && d.relay !== 9) return;
+
+    if (topic === "/printer_01/sync") {
+      if(d.by !== myDeviceName) updateState(d.relay, d.state);
+      return;
+    }
+
     if(d.relays) d.relays.forEach((s, i) => updateState(i+1, s));
     if(d.master !== undefined) updateState(9, d.master);
+    
     if(d.v) ['v','a','w','wh'].forEach(k => {
        const el = document.getElementById(`val-${k}`);
        if(el) el.innerText = d[k];
