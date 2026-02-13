@@ -1,0 +1,69 @@
+:root { --primary: #4CAF50; --danger: #f44336; --dark: #1a1a1a; --light: #ffffff; --grey: #bbb; }
+body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f0f2f5; display: flex; flex-direction: column; height: 100vh; overflow-x: hidden; }
+
+/* Login Overlay */
+#login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--dark); display: flex; align-items: center; justify-content: center; z-index: 99999; }
+.login-box { background: #2d2d2d; padding: 30px; border-radius: 12px; width: 300px; text-align: center; color: white; }
+.input-field { width: 100%; padding: 10px; margin: 5px 0; border-radius: 5px; border: 1px solid #555; background: #111; color: white; box-sizing: border-box; }
+.action-btn { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+
+/* Layout */
+.header { background: #333; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+.container { display: flex; flex: 1; padding: 15px; gap: 15px; overflow-y: auto; flex-wrap: wrap; margin-bottom: 60px; }
+.sidebar { width: 30%; min-width: 280px; display: flex; flex-direction: column; gap: 15px; }
+.main-content { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 15px; }
+
+.card { background: var(--light); padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+
+/* Controls */
+.disabled { opacity: 0.5; pointer-events: none; filter: grayscale(100%); }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.relay-item { border: 1px solid #eee; padding: 10px; border-radius: 8px; text-align: center; background: #fafafa; }
+.led { width: 10px; height: 10px; border-radius: 50%; background: var(--grey); display: inline-block; margin-right: 5px; }
+.led.on { background: var(--primary); box-shadow: 0 0 8px var(--primary); }
+
+.btn { width: 100%; padding: 8px; margin-top: 5px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 11px; }
+.btn-on { background: #e8f5e9; color: var(--primary); border: 1px solid var(--primary); }
+.btn-off { background: #ffebee; color: var(--danger); border: 1px solid var(--danger); }
+
+/* Camera */
+.camera-box { background: black; width: 100%; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; color: #555; border-radius: 8px; position: relative; overflow: hidden; }
+img#cam-stream { width: 100%; height: 100%; object-fit: contain; display: none; }
+
+/* PZEM & Logs */
+.pzem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; }
+.pzem-val { font-size: 18px; font-weight: bold; }
+.pzem-label { font-size: 10px; color: #888; }
+.log-list { font-size: 11px; height: 150px; overflow-y: auto; border-top: 1px solid #eee; }
+.log-table { width: 100%; border-collapse: collapse; }
+.log-table th { text-align: left; background: #f9f9f9; padding: 5px; position: sticky; top: 0; }
+.log-table td { padding: 5px; border-bottom: 1px solid #eee; color: #555; }
+
+/* Modals */
+.modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center; }
+.modal-box { background: white; padding: 25px; border-radius: 10px; width: 300px; text-align: center; max-height: 80vh; overflow-y: auto; }
+.modal-wide { width: 90%; max-width: 600px; text-align: left; }
+
+/* Tutorial Navigation */
+.tut-header { border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-bottom: 15px; color: #333; display: flex; justify-content: space-between; align-items: center;}
+.tut-section { flex: 1; margin-bottom: 0; min-height: auto;}
+.tut-step { background: #f9f9f9; padding: 10px; border-left: 4px solid var(--primary); margin-bottom: 10px; border-radius: 0 5px 5px 0; font-size: 13px; color: #444; }
+.code-block { background: #333; color: #0f0; padding: 8px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 11px; display: block; margin: 5px 0; overflow-x: auto; white-space: nowrap; }
+.tut-warn { color: #d32f2f; font-weight: bold; font-size: 12px; background: #ffebee; padding: 5px; border-radius: 4px; }
+.tut-nav { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eee; padding-top: 15px; }
+.tut-btn { padding: 8px 15px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; background: #eee; color: #555; }
+.tut-btn.primary { background: var(--primary); color: white; }
+.tut-img { width: 250px; flex-shrink: 0; height: auto; object-fit: contain; border-radius: 8px; border: 1px solid #ddd; }
+.tut-content-scroll { display: flex; flex-direction: row; gap: 20px; max-height: 500px; overflow-y: auto; padding-right: 10px; align-items: flex-start; }
+
+/* Floating Buttons */
+#config-btn { position: fixed; bottom: 140px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #555; color: white; font-weight: bold; font-size: 20px; border: 1px solid #777; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; }
+#help-btn { position: fixed; bottom: 80px; left: 20px; width: 45px; height: 45px; border-radius: 50%; background: #333; color: white; font-weight: bold; font-size: 20px; border: 1px solid #555; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999; transition: 0.3s; }
+
+footer { position: fixed; bottom: 0; width: 100%; background: #333; color: white; padding: 15px 0; display: flex; justify-content: space-around; font-size: 12px; }
+
+@media (max-width: 700px) {
+  .tut-content-scroll { flex-direction: column; }
+  .tut-img { width: 100%; max-width: none; margin-bottom: 15px; }
+}
