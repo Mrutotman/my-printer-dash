@@ -1,12 +1,11 @@
-// ================= STATE MANAGEMENT =================
+// ================= STATE =================
+let SERVER_URL = "";
 let authToken = null;
-let currentCameraUrl = "";
 let myDeviceName = "Unknown";
 let deviceState = {1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0};
 let pendingId = null;
 let pendingState = null;
 let lockTimer = 0;
-let currentTutPage = 0;
 
 // ================= INITIALIZATION =================
 window.onload = () => {
@@ -14,10 +13,16 @@ window.onload = () => {
     renderRelays();
     loadStoredLogs();
 
+    const savedURL = localStorage.getItem("server_url");
     const savedToken = localStorage.getItem("auth_token");
-    const savedName  = localStorage.getItem("device_name");
+    const savedName = localStorage.getItem("device_name");
 
-    if(savedToken) {
+    if(savedURL) {
+        SERVER_URL = savedURL;
+        document.getElementById("server-url").value = savedURL;
+    }
+
+    if(savedToken && savedURL) {
         authToken = savedToken;
         myDeviceName = savedName || "Unknown";
         document.getElementById("display-name").innerText = myDeviceName;
@@ -26,19 +31,27 @@ window.onload = () => {
     }
 };
 
-// ================= LOGIN SYSTEM =================
+// ================= LOGIN =================
 function connectSystem() {
 
     const user = document.getElementById("mqtt-user").value.trim();
     const pass = document.getElementById("mqtt-pass").value.trim();
     const name = document.getElementById("device-name").value.trim() || "Unknown";
+    const url  = document.getElementById("server-url").value.trim();
 
-    if(!user || !pass) {
-        alert("Credentials Required");
+    if(!user || !pass || !url) {
+        alert("All fields required");
         return;
     }
 
-    fetch(`${DEVICE_URL}/login`, {
+    if(!url.startsWith("https://") && !url.startsWith("http://")) {
+        alert("Invalid server URL");
+        return;
+    }
+
+    SERVER_URL = url.replace(/\/$/, "");
+
+    fetch(`${SERVER_URL}/login`, {
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({username:user, password:pass})
@@ -54,6 +67,7 @@ function connectSystem() {
         authToken = data.token;
         myDeviceName = name;
 
+        localStorage.setItem("server_url", SERVER_URL);
         localStorage.setItem("auth_token", authToken);
         localStorage.setItem("device_name", myDeviceName);
 
@@ -76,7 +90,7 @@ function showDashboard() {
     document.getElementById("dashboard").style.display = "block";
 }
 
-// ================= STATUS POLLING =================
+// ================= STATUS =================
 function startPolling() {
     fetchStatus();
     setInterval(fetchStatus, 2000);
@@ -84,7 +98,7 @@ function startPolling() {
 
 function fetchStatus() {
 
-    fetch(`${DEVICE_URL}/status`, {
+    fetch(`${SERVER_URL}/status`, {
         headers: { "Authorization": "Bearer " + authToken }
     })
     .then(r => r.json())
@@ -95,32 +109,29 @@ function fetchStatus() {
         if(d.relays) d.relays.forEach((s,i)=> updateState(i+1,s));
         if(d.master !== undefined) updateState(9,d.master);
 
-        if(d.v) ['v','a','w','wh'].forEach(k=>{
-            const el = document.getElementById(`val-${k}`);
-            if(el) el.innerText = d[k];
-        });
-
+        if(d.v) document.getElementById("val-v").innerText = d.v;
+        if(d.a) document.getElementById("val-a").innerText = d.a;
+        if(d.w) document.getElementById("val-w").innerText = d.w;
+        if(d.wh) document.getElementById("val-wh").innerText = d.wh;
         if(d.temp) document.getElementById("val-temp").innerText = d.temp;
         if(d.humi) document.getElementById("val-humi").innerText = d.humi;
     })
     .catch(()=> console.log("Offline"));
 }
 
-// ================= SEND COMMAND =================
+// ================= CONTROL =================
 function sendCommand(id, state) {
 
     lockTimer = Date.now() + 2000;
     updateState(id, state);
 
-    fetch(`${DEVICE_URL}/control?relay=${id}&state=${state}`, {
+    fetch(`${SERVER_URL}/control?relay=${id}&state=${state}`, {
         headers: { "Authorization": "Bearer " + authToken }
     })
     .catch(()=> alert("Device Not Reachable"));
-
-    broadcastLog(state ? "ON" : "OFF", getDeviceName(id));
 }
 
-// ================= UI STATE =================
+// ================= UI =================
 function updateState(id, state) {
 
     state = Number(state);
@@ -129,13 +140,8 @@ function updateState(id, state) {
     if(id === 9 && state === 0) {
         for(let i=1;i<=8;i++) {
             deviceState[i] = 0;
-            const subLed = document.getElementById(`led-${i}`);
-            const subBtn = document.getElementById(`btn-${i}`);
-            if(subLed && subBtn) {
-                subLed.classList.remove("on");
-                subBtn.innerText = "TURN ON";
-                subBtn.className = "btn btn-on";
-            }
+            document.getElementById(`led-${i}`).classList.remove("on");
+            document.getElementById(`btn-${i}`).innerText = "TURN ON";
         }
     }
 
@@ -146,58 +152,15 @@ function updateState(id, state) {
     if(state === 1) {
         led.classList.add("on");
         btn.innerText = "TURN OFF";
-        btn.className = "btn btn-off";
-        if(id === 9) document.getElementById("panel-lock").classList.remove("disabled");
     } else {
         led.classList.remove("on");
         btn.innerText = "TURN ON";
-        btn.className = "btn btn-on";
-        if(id === 9) document.getElementById("panel-lock").classList.add("disabled");
     }
 }
 
-// ================= CONTROL FLOW =================
 function handleClick(id) {
-
-    const currentState = deviceState[id];
-    const newState = currentState === 1 ? 0 : 1;
-    const name = getDeviceName(id);
-
-    pendingId = id;
-    pendingState = newState;
-
-    if(newState === 1) {
-        sendCommand(id,1);
-        return;
-    }
-
-    const msg = document.getElementById("confirm-msg");
-    const input = document.getElementById("confirm-input");
-
-    if(id === 9) {
-        msg.innerHTML = `Type <b>CONFIRM</b> to kill <b>${name}</b>`;
-        input.style.display = "block";
-        input.value = "";
-    } else {
-        msg.innerHTML = `Turn off <b>${name}</b>?`;
-        input.style.display = "none";
-    }
-
-    openModal("confirm-modal");
-}
-
-function executeOff() {
-    if(pendingId === 9) {
-        const txt = document.getElementById("confirm-input").value;
-        if(txt !== "CONFIRM") return alert("Please type CONFIRM");
-    }
-    sendCommand(pendingId, pendingState);
-    closeModal("confirm-modal");
-}
-
-// ================= UTILITIES =================
-function getDeviceName(id) {
-    return id === 9 ? "Main System Bus" : LABELS[id - 1] || "Unknown";
+    const newState = deviceState[id] === 1 ? 0 : 1;
+    sendCommand(id, newState);
 }
 
 function renderRelays() {
@@ -209,50 +172,7 @@ function renderRelays() {
       </div>`).join('');
 }
 
-// ================= LOGGING =================
-function displayLog(data) {
-    const tbody = document.getElementById("log-body");
-    const row = `<tr><td>${data.date}</td><td>${data.time}</td><td>${data.by}</td><td>${data.action}</td><td>${data.target}</td></tr>`;
-    tbody.insertAdjacentHTML("afterbegin", row);
-    if(tbody.rows.length > 50) tbody.deleteRow(50);
-}
-
-function loadStoredLogs() {
-    const stored = JSON.parse(localStorage.getItem("activity_logs") || "[]");
-    stored.forEach(log=>{
-        const tbody = document.getElementById("log-body");
-        tbody.insertAdjacentHTML("beforeend",
-            `<tr><td>${log.date}</td><td>${log.time}</td><td>${log.by}</td><td>${log.action}</td><td>${log.target}</td></tr>`
-        );
-    });
-}
-
-function broadcastLog(action,target) {
-    const logData = {
-        date: new Date().toLocaleDateString(),
-        time: new Date().toLocaleTimeString(),
-        by: myDeviceName,
-        action: action,
-        target: target
-    };
-
-    displayLog(logData);
-
-    let logs = JSON.parse(localStorage.getItem("activity_logs") || "[]");
-    logs.unshift(logData);
-    localStorage.setItem("activity_logs", JSON.stringify(logs.slice(0,50)));
-}
-
-// ================= MODALS =================
-function openModal(id) {
-    document.getElementById(id).style.display = "flex";
-}
-
-function closeModal(id) {
-    document.getElementById(id || "confirm-modal").style.display = "none";
-    pendingId = null;
-}
-
+// ================= CLOCK =================
 setInterval(()=>{
     const c = document.getElementById("clock");
     if(c) c.innerText = new Date().toLocaleTimeString();
