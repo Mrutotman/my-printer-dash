@@ -1,103 +1,64 @@
-// ================= STATE MANAGEMENT =================
-const CLIENT_ID = "web_" + Math.random().toString(16).substr(2, 8);
-let client = null;
+// ================= CONFIGURATION =================
+const DEVICE_URL = "https://yourdomain.com";   // Cloudflare public URL
+const LABELS = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "Light Bulb 1", "Light Bulb 2", "Free 1", "Free 2"];
+
+// ================= STATE =================
 let currentCameraUrl = "";
 let myDeviceName = "Unknown";
-let deviceState = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 }; 
-let pendingId = null; 
+let deviceState = { 1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0 };
+let pendingId = null;
 let pendingState = null;
-let lockTimer = 0; 
-let currentTutPage = 0;
+let lockTimer = 0;
 
 // ================= INITIALIZATION =================
 window.onload = () => {
     renderRelays();
-    loadStoredLogs(); 
-
-    const u = localStorage.getItem("mq_u");
-    const p = localStorage.getItem("mq_p");
-    const d = localStorage.getItem("mq_d"); 
-  
-    if(u && p) { 
-        document.getElementById("mqtt-user").value = u;
-        document.getElementById("mqtt-pass").value = p;
-        if(d) document.getElementById("device-name").value = d;
-        connectSystem();
-    }
+    loadStoredLogs();
+    fetchStatus();
+    setInterval(fetchStatus, 2000);   // Poll every 2 seconds
 };
 
-// ================= MQTT CORE =================
-function connectSystem() {
-    const u = document.getElementById("mqtt-user").value;
-    const p = document.getElementById("mqtt-pass").value;
-    const d = document.getElementById("device-name").value || "Unknown Device";
-  
-    if(!u || !p) return alert("Credentials Required");
+// ================= HTTP STATUS =================
+function fetchStatus() {
+    fetch(`${DEVICE_URL}/status`)
+        .then(r => r.json())
+        .then(d => {
 
-    myDeviceName = d;
-    document.getElementById("display-name").innerText = myDeviceName;
+            if (Date.now() < lockTimer) return;
 
-    if(document.getElementById("remember-me").checked) {
-        localStorage.setItem("mq_u", u);
-        localStorage.setItem("mq_p", p);
-        localStorage.setItem("mq_d", d);
-    }
+            if(d.relays) d.relays.forEach((s,i)=> updateState(i+1,s));
+            if(d.master !== undefined) updateState(9,d.master);
 
-    client = new Paho.MQTT.Client("wss://" + MQTT_HOST + ":" + MQTT_PORT + "/mqtt", CLIENT_ID);
-    client.onMessageArrived = onMessage;
-  
-    client.connect({
-        useSSL: true, userName: u, password: p,
-        onSuccess: () => {
-            document.getElementById("login-overlay").style.display = "none";
-            document.getElementById("dashboard").style.display = "block";
-            client.subscribe("/printer_01/status");
-            client.subscribe("/printer_01/logs"); 
-            client.subscribe("/printer_01/sync");
-            client.subscribe("/printer_01/config/camera");
-        },
-        onFailure: (e) => alert("Connection Failed: " + e.errorMessage)
-    });
+            if(d.v) ['v','a','w','wh'].forEach(k=>{
+                const el = document.getElementById(`val-${k}`);
+                if(el) el.innerText = d[k];
+            });
+
+            if(d.temp) document.getElementById("val-temp").innerText = d.temp;
+            if(d.humi) document.getElementById("val-humi").innerText = d.humi;
+        })
+        .catch(()=> console.log("Device Offline"));
 }
 
-function onMessage(m) {
-    const topic = m.destinationName;
-    const payload = m.payloadString;
+// ================= SEND COMMAND =================
+function sendCommand(id, state) {
 
-    if (topic === "/printer_01/config/camera") {
-        updateCameraSource(payload);
-        return;
-    }
-    if (topic === "/printer_01/logs") {
-        try { displayLog(JSON.parse(payload)); } catch(e) {}
-        return;
-    }
-  
-    try {
-        const d = JSON.parse(payload);
-        if (Date.now() < lockTimer && d.master === undefined && d.relay !== 9) return;
+    lockTimer = Date.now() + 2000;
+    updateState(id, state);
 
-        if (topic === "/printer_01/sync") {
-            if(d.by !== myDeviceName) updateState(d.relay, d.state);
-            return;
-        }
+    fetch(`${DEVICE_URL}/control?relay=${id}&state=${state}&key=1234`)
+        .then(r => r.text())
+        .then(()=> console.log("Command Sent"))
+        .catch(()=> alert("Device Not Reachable"));
 
-        if(d.relays) d.relays.forEach((s, i) => updateState(i+1, s));
-        if(d.master !== undefined) updateState(9, d.master);
-    
-        if(d.v) ['v','a','w','wh'].forEach(k => {
-            const el = document.getElementById(`val-${k}`);
-            if(el) el.innerText = d[k];
-        });
-        if(d.temp) document.getElementById("val-temp").innerText = d.temp;
-        if(d.humi) document.getElementById("val-humi").innerText = d.humi;
-    } catch(e) { console.error(e); }
+    broadcastLog(state ? "ON" : "OFF", getDeviceName(id));
 }
 
-// ================= UI & CONTROLS =================
+// ================= UI STATE =================
 function updateState(id, state) {
+
     state = Number(state);
-    deviceState[id] = state; 
+    deviceState[id] = state;
 
     if (id === 9 && state === 0) {
         for (let i = 1; i <= 8; i++) {
@@ -129,8 +90,10 @@ function updateState(id, state) {
     }
 }
 
+// ================= BUTTON HANDLER =================
 function handleClick(id) {
-    const currentState = deviceState[id]; 
+
+    const currentState = deviceState[id];
     const newState = currentState === 1 ? 0 : 1;
     const name = getDeviceName(id);
 
@@ -153,6 +116,7 @@ function handleClick(id) {
         msg.innerHTML = `Turn off <b>${name}</b>?`;
         input.style.display = "none";
     }
+
     openModal("confirm-modal");
 }
 
@@ -163,24 +127,6 @@ function executeOff() {
     }
     sendCommand(pendingId, pendingState);
     closeModal("confirm-modal");
-}
-
-function sendCommand(id, state) {
-    lockTimer = Date.now() + 2000; 
-    updateState(id, state); 
-  
-    const payloadObj = { relay: id, state: state, by: myDeviceName };
-    const payloadStr = JSON.stringify(payloadObj);
-
-    const msgCommand = new Paho.MQTT.Message(payloadStr);
-    msgCommand.destinationName = "/printer_01/commands";
-    client.send(msgCommand);
-
-    const msgSync = new Paho.MQTT.Message(payloadStr);
-    msgSync.destinationName = "/printer_01/sync"; 
-    client.send(msgSync);
-
-    broadcastLog(state ? "ON" : "OFF", getDeviceName(id));
 }
 
 // ================= UTILITIES =================
@@ -200,85 +146,37 @@ function renderRelays() {
 function updateCameraSource(url) {
     if(!url || url === currentCameraUrl) return;
     currentCameraUrl = url;
-    document.getElementById("cam-stream").src = url; 
+    document.getElementById("cam-stream").src = url;
 }
 
 function saveConfig() {
     let newUrl = document.getElementById("stream-input").value.trim();
-    if(newUrl.endsWith("/")) newUrl = newUrl.slice(0, -1);
-    if(!newUrl.includes("/stream")) newUrl += "/stream";
-
     if(!newUrl.startsWith("https://")) return alert("Link must start with https://");
-
-    if(client && client.isConnected()) {
-        const msg = new Paho.MQTT.Message(newUrl);
-        msg.destinationName = "/printer_01/config/camera";
-        msg.retained = true; 
-        client.send(msg);
-        alert("Link Saved & Synced!");
-        closeModal('config-modal');
-    }
+    document.getElementById("cam-stream").src = newUrl;
+    alert("Camera Updated");
 }
 
 // ================= LOGGING =================
 function displayLog(data) {
     const tbody = document.getElementById("log-body");
-    const row = `<tr><td>${data.date || "---"}</td><td>${data.time}</td><td style="color:#666; font-weight:bold;">${data.by}</td><td>${data.action}</td><td>${data.target}</td></tr>`;
+    const row = `<tr><td>${data.date || "---"}</td><td>${data.time}</td><td>${data.by}</td><td>${data.action}</td><td>${data.target}</td></tr>`;
     tbody.insertAdjacentHTML("afterbegin", row);
     if (tbody.rows.length > 50) tbody.deleteRow(50);
-    
-    let logs = JSON.parse(localStorage.getItem("activity_logs") || "[]");
-    logs.unshift(data);
-    localStorage.setItem("activity_logs", JSON.stringify(logs.slice(0, 50)));
-}
-
-function loadStoredLogs() {
-    const stored = JSON.parse(localStorage.getItem("activity_logs") || "[]");
-    stored.forEach(log => {
-        const tbody = document.getElementById("log-body");
-        tbody.insertAdjacentHTML("beforeend", `<tr><td>${log.date || "---"}</td><td>${log.time}</td><td>${log.by}</td><td>${log.action}</td><td>${log.target}</td></tr>`);
-    });
 }
 
 function broadcastLog(action, target) {
     const logData = { date: new Date().toLocaleDateString(), time: new Date().toLocaleTimeString(), by: myDeviceName, action: action, target: target };
-    const message = new Paho.MQTT.Message(JSON.stringify(logData));
-    message.destinationName = "/printer_01/logs"; 
-    client.send(message);
+    displayLog(logData);
 }
 
-// ================= MODALS & TUTORIAL =================
-function openModal(id) { 
-    if(id === 'tutorial-modal') { currentTutPage = 0; renderTutorial(); }
-    document.getElementById(id).style.display = "flex"; 
+// ================= MODALS =================
+function openModal(id) {
+    document.getElementById(id).style.display = "flex";
 }
 
-function closeModal(id) { 
-    document.getElementById(id || "confirm-modal").style.display = "none"; 
+function closeModal(id) {
+    document.getElementById(id || "confirm-modal").style.display = "none";
     pendingId = null;
-}
-
-function renderTutorial() {
-    const data = tutorialData[currentTutPage];
-    const imgEl = document.getElementById("tut-image-display");
-    document.getElementById("tut-title-text").innerText = data.title;
-    document.getElementById("tut-content-area").innerHTML = data.content;
-    document.getElementById("tut-page-indicator").innerText = `${currentTutPage + 1}/${tutorialData.length}`;
-    imgEl.src = data.img || "";
-    imgEl.style.display = data.img ? "block" : "none";
-    document.getElementById("btn-prev").disabled = (currentTutPage === 0);
-    document.getElementById("btn-next").innerText = (currentTutPage === tutorialData.length - 1) ? "Finish" : "Next";
-}
-
-function changeTutorialPage(dir) {
-    if (dir === 1 && currentTutPage === tutorialData.length - 1) return closeModal('tutorial-modal');
-    currentTutPage = Math.max(0, Math.min(tutorialData.length - 1, currentTutPage + dir));
-    renderTutorial();
-}
-
-function doLogout() {
-    localStorage.removeItem("mq_u"); localStorage.removeItem("mq_p");
-    location.reload();
 }
 
 setInterval(() => {
