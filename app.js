@@ -1,43 +1,102 @@
-// ================= CONFIGURATION =================
-const DEVICE_URL = "https://yourdomain.com";   // Cloudflare public URL
-const LABELS = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "Light Bulb 1", "Light Bulb 2", "Free 1", "Free 2"];
-
-// ================= STATE =================
+// ================= STATE MANAGEMENT =================
+let authToken = null;
 let currentCameraUrl = "";
 let myDeviceName = "Unknown";
 let deviceState = { 1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0 };
 let pendingId = null;
 let pendingState = null;
 let lockTimer = 0;
+let currentTutPage = 0;
 
 // ================= INITIALIZATION =================
 window.onload = () => {
+
     renderRelays();
     loadStoredLogs();
-    fetchStatus();
-    setInterval(fetchStatus, 2000);   // Poll every 2 seconds
+
+    const storedToken = localStorage.getItem("auth_token");
+    const storedName  = localStorage.getItem("device_name");
+
+    if(storedToken) {
+        authToken = storedToken;
+        myDeviceName = storedName || "Unknown";
+        document.getElementById("display-name").innerText = myDeviceName;
+        showDashboard();
+        startPolling();
+    }
 };
 
-// ================= HTTP STATUS =================
+// ================= LOGIN SYSTEM =================
+function connectSystem() {
+
+    const user = document.getElementById("mqtt-user").value;
+    const pass = document.getElementById("mqtt-pass").value;
+    const name = document.getElementById("device-name").value || "Unknown";
+
+    if(!user || !pass) return alert("Credentials Required");
+
+    fetch(`${DEVICE_URL}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user, password: pass })
+    })
+    .then(r => r.json())
+    .then(data => {
+
+        if(!data.token) return alert("Login Failed");
+
+        authToken = data.token;
+        myDeviceName = name;
+
+        localStorage.setItem("auth_token", authToken);
+        localStorage.setItem("device_name", myDeviceName);
+
+        document.getElementById("display-name").innerText = myDeviceName;
+        showDashboard();
+        startPolling();
+    })
+    .catch(()=> alert("Device Not Reachable"));
+}
+
+function doLogout() {
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("device_name");
+    location.reload();
+}
+
+function showDashboard() {
+    document.getElementById("login-overlay").style.display = "none";
+    document.getElementById("dashboard").style.display = "block";
+}
+
+// ================= STATUS POLLING =================
+function startPolling() {
+    fetchStatus();
+    setInterval(fetchStatus, 2000);
+}
+
 function fetchStatus() {
-    fetch(`${DEVICE_URL}/status`)
-        .then(r => r.json())
-        .then(d => {
 
-            if (Date.now() < lockTimer) return;
+    fetch(`${DEVICE_URL}/status`, {
+        headers: { "Authorization": "Bearer " + authToken }
+    })
+    .then(r => r.json())
+    .then(d => {
 
-            if(d.relays) d.relays.forEach((s,i)=> updateState(i+1,s));
-            if(d.master !== undefined) updateState(9,d.master);
+        if (Date.now() < lockTimer) return;
 
-            if(d.v) ['v','a','w','wh'].forEach(k=>{
-                const el = document.getElementById(`val-${k}`);
-                if(el) el.innerText = d[k];
-            });
+        if(d.relays) d.relays.forEach((s,i)=> updateState(i+1,s));
+        if(d.master !== undefined) updateState(9,d.master);
 
-            if(d.temp) document.getElementById("val-temp").innerText = d.temp;
-            if(d.humi) document.getElementById("val-humi").innerText = d.humi;
-        })
-        .catch(()=> console.log("Device Offline"));
+        if(d.v) ['v','a','w','wh'].forEach(k=>{
+            const el = document.getElementById(`val-${k}`);
+            if(el) el.innerText = d[k];
+        });
+
+        if(d.temp) document.getElementById("val-temp").innerText = d.temp;
+        if(d.humi) document.getElementById("val-humi").innerText = d.humi;
+    })
+    .catch(()=> console.log("Offline"));
 }
 
 // ================= SEND COMMAND =================
@@ -46,15 +105,15 @@ function sendCommand(id, state) {
     lockTimer = Date.now() + 2000;
     updateState(id, state);
 
-    fetch(`${DEVICE_URL}/control?relay=${id}&state=${state}&key=1234`)
-        .then(r => r.text())
-        .then(()=> console.log("Command Sent"))
-        .catch(()=> alert("Device Not Reachable"));
+    fetch(`${DEVICE_URL}/control?relay=${id}&state=${state}`, {
+        headers: { "Authorization": "Bearer " + authToken }
+    })
+    .catch(()=> alert("Device Not Reachable"));
 
     broadcastLog(state ? "ON" : "OFF", getDeviceName(id));
 }
 
-// ================= UI STATE =================
+// ================= UI & CONTROLS =================
 function updateState(id, state) {
 
     state = Number(state);
@@ -90,7 +149,6 @@ function updateState(id, state) {
     }
 }
 
-// ================= BUTTON HANDLER =================
 function handleClick(id) {
 
     const currentState = deviceState[id];
@@ -164,21 +222,52 @@ function displayLog(data) {
     if (tbody.rows.length > 50) tbody.deleteRow(50);
 }
 
+function loadStoredLogs() {
+    const stored = JSON.parse(localStorage.getItem("activity_logs") || "[]");
+    stored.forEach(log => {
+        const tbody = document.getElementById("log-body");
+        tbody.insertAdjacentHTML("beforeend", `<tr><td>${log.date || "---"}</td><td>${log.time}</td><td>${log.by}</td><td>${log.action}</td><td>${log.target}</td></tr>`);
+    });
+}
+
 function broadcastLog(action, target) {
     const logData = { date: new Date().toLocaleDateString(), time: new Date().toLocaleTimeString(), by: myDeviceName, action: action, target: target };
     displayLog(logData);
+    let logs = JSON.parse(localStorage.getItem("activity_logs") || "[]");
+    logs.unshift(logData);
+    localStorage.setItem("activity_logs", JSON.stringify(logs.slice(0,50)));
 }
 
-// ================= MODALS =================
-function openModal(id) {
-    document.getElementById(id).style.display = "flex";
+// ================= MODALS & TUTORIAL =================
+function openModal(id) { 
+    if(id === 'tutorial-modal') { currentTutPage = 0; renderTutorial(); }
+    document.getElementById(id).style.display = "flex"; 
 }
 
-function closeModal(id) {
-    document.getElementById(id || "confirm-modal").style.display = "none";
+function closeModal(id) { 
+    document.getElementById(id || "confirm-modal").style.display = "none"; 
     pendingId = null;
 }
 
+function renderTutorial() {
+    const data = tutorialData[currentTutPage];
+    const imgEl = document.getElementById("tut-image-display");
+    document.getElementById("tut-title-text").innerText = data.title;
+    document.getElementById("tut-content-area").innerHTML = data.content;
+    document.getElementById("tut-page-indicator").innerText = `${currentTutPage + 1}/${tutorialData.length}`;
+    imgEl.src = data.img || "";
+    imgEl.style.display = data.img ? "block" : "none";
+    document.getElementById("btn-prev").disabled = (currentTutPage === 0);
+    document.getElementById("btn-next").innerText = (currentTutPage === tutorialData.length - 1) ? "Finish" : "Next";
+}
+
+function changeTutorialPage(dir) {
+    if (dir === 1 && currentTutPage === tutorialData.length - 1) return closeModal('tutorial-modal');
+    currentTutPage = Math.max(0, Math.min(tutorialData.length - 1, currentTutPage + dir));
+    renderTutorial();
+}
+
 setInterval(() => {
-    document.getElementById("clock").innerText = new Date().toLocaleTimeString();
+    const c = document.getElementById("clock");
+    if(c) c.innerText = new Date().toLocaleTimeString();
 }, 1000);
