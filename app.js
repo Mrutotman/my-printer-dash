@@ -2,7 +2,7 @@
 let authToken = null;
 let currentCameraUrl = "";
 let myDeviceName = "Unknown";
-let deviceState = { 1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0 };
+let deviceState = {1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0};
 let pendingId = null;
 let pendingState = null;
 let lockTimer = 0;
@@ -14,12 +14,12 @@ window.onload = () => {
     renderRelays();
     loadStoredLogs();
 
-    const storedToken = localStorage.getItem("auth_token");
-    const storedName  = localStorage.getItem("device_name");
+    const savedToken = localStorage.getItem("auth_token");
+    const savedName  = localStorage.getItem("device_name");
 
-    if(storedToken) {
-        authToken = storedToken;
-        myDeviceName = storedName || "Unknown";
+    if(savedToken) {
+        authToken = savedToken;
+        myDeviceName = savedName || "Unknown";
         document.getElementById("display-name").innerText = myDeviceName;
         showDashboard();
         startPolling();
@@ -29,21 +29,27 @@ window.onload = () => {
 // ================= LOGIN SYSTEM =================
 function connectSystem() {
 
-    const user = document.getElementById("mqtt-user").value;
-    const pass = document.getElementById("mqtt-pass").value;
-    const name = document.getElementById("device-name").value || "Unknown";
+    const user = document.getElementById("mqtt-user").value.trim();
+    const pass = document.getElementById("mqtt-pass").value.trim();
+    const name = document.getElementById("device-name").value.trim() || "Unknown";
 
-    if(!user || !pass) return alert("Credentials Required");
+    if(!user || !pass) {
+        alert("Credentials Required");
+        return;
+    }
 
     fetch(`${DEVICE_URL}/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: user, password: pass })
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({username:user, password:pass})
     })
     .then(r => r.json())
     .then(data => {
 
-        if(!data.token) return alert("Login Failed");
+        if(!data.token) {
+            alert("Login Failed");
+            return;
+        }
 
         authToken = data.token;
         myDeviceName = name;
@@ -52,10 +58,11 @@ function connectSystem() {
         localStorage.setItem("device_name", myDeviceName);
 
         document.getElementById("display-name").innerText = myDeviceName;
+
         showDashboard();
         startPolling();
     })
-    .catch(()=> alert("Device Not Reachable"));
+    .catch(()=> alert("Cannot reach server"));
 }
 
 function doLogout() {
@@ -83,7 +90,7 @@ function fetchStatus() {
     .then(r => r.json())
     .then(d => {
 
-        if (Date.now() < lockTimer) return;
+        if(Date.now() < lockTimer) return;
 
         if(d.relays) d.relays.forEach((s,i)=> updateState(i+1,s));
         if(d.master !== undefined) updateState(9,d.master);
@@ -113,18 +120,18 @@ function sendCommand(id, state) {
     broadcastLog(state ? "ON" : "OFF", getDeviceName(id));
 }
 
-// ================= UI & CONTROLS =================
+// ================= UI STATE =================
 function updateState(id, state) {
 
     state = Number(state);
     deviceState[id] = state;
 
-    if (id === 9 && state === 0) {
-        for (let i = 1; i <= 8; i++) {
+    if(id === 9 && state === 0) {
+        for(let i=1;i<=8;i++) {
             deviceState[i] = 0;
             const subLed = document.getElementById(`led-${i}`);
             const subBtn = document.getElementById(`btn-${i}`);
-            if (subLed && subBtn) {
+            if(subLed && subBtn) {
                 subLed.classList.remove("on");
                 subBtn.innerText = "TURN ON";
                 subBtn.className = "btn btn-on";
@@ -136,7 +143,7 @@ function updateState(id, state) {
     const btn = document.getElementById(`btn-${id}`);
     if(!led || !btn) return;
 
-    if (state === 1) {
+    if(state === 1) {
         led.classList.add("on");
         btn.innerText = "TURN OFF";
         btn.className = "btn btn-off";
@@ -149,6 +156,7 @@ function updateState(id, state) {
     }
 }
 
+// ================= CONTROL FLOW =================
 function handleClick(id) {
 
     const currentState = deviceState[id];
@@ -159,7 +167,7 @@ function handleClick(id) {
     pendingState = newState;
 
     if(newState === 1) {
-        sendCommand(id, 1);
+        sendCommand(id,1);
         return;
     }
 
@@ -194,80 +202,58 @@ function getDeviceName(id) {
 
 function renderRelays() {
     const container = document.getElementById("relay-grid");
-    container.innerHTML = LABELS.map((name, i) => `
+    container.innerHTML = LABELS.map((name,i)=>`
       <div class="relay-item">
         <div><span id="led-${i+1}" class="led"></span> <b>${name}</b></div>
         <button id="btn-${i+1}" class="btn btn-on" onclick="handleClick(${i+1})">TURN ON</button>
       </div>`).join('');
 }
 
-function updateCameraSource(url) {
-    if(!url || url === currentCameraUrl) return;
-    currentCameraUrl = url;
-    document.getElementById("cam-stream").src = url;
-}
-
-function saveConfig() {
-    let newUrl = document.getElementById("stream-input").value.trim();
-    if(!newUrl.startsWith("https://")) return alert("Link must start with https://");
-    document.getElementById("cam-stream").src = newUrl;
-    alert("Camera Updated");
-}
-
 // ================= LOGGING =================
 function displayLog(data) {
     const tbody = document.getElementById("log-body");
-    const row = `<tr><td>${data.date || "---"}</td><td>${data.time}</td><td>${data.by}</td><td>${data.action}</td><td>${data.target}</td></tr>`;
+    const row = `<tr><td>${data.date}</td><td>${data.time}</td><td>${data.by}</td><td>${data.action}</td><td>${data.target}</td></tr>`;
     tbody.insertAdjacentHTML("afterbegin", row);
-    if (tbody.rows.length > 50) tbody.deleteRow(50);
+    if(tbody.rows.length > 50) tbody.deleteRow(50);
 }
 
 function loadStoredLogs() {
     const stored = JSON.parse(localStorage.getItem("activity_logs") || "[]");
-    stored.forEach(log => {
+    stored.forEach(log=>{
         const tbody = document.getElementById("log-body");
-        tbody.insertAdjacentHTML("beforeend", `<tr><td>${log.date || "---"}</td><td>${log.time}</td><td>${log.by}</td><td>${log.action}</td><td>${log.target}</td></tr>`);
+        tbody.insertAdjacentHTML("beforeend",
+            `<tr><td>${log.date}</td><td>${log.time}</td><td>${log.by}</td><td>${log.action}</td><td>${log.target}</td></tr>`
+        );
     });
 }
 
-function broadcastLog(action, target) {
-    const logData = { date: new Date().toLocaleDateString(), time: new Date().toLocaleTimeString(), by: myDeviceName, action: action, target: target };
+function broadcastLog(action,target) {
+    const logData = {
+        date: new Date().toLocaleDateString(),
+        time: new Date().toLocaleTimeString(),
+        by: myDeviceName,
+        action: action,
+        target: target
+    };
+
     displayLog(logData);
+
     let logs = JSON.parse(localStorage.getItem("activity_logs") || "[]");
     logs.unshift(logData);
     localStorage.setItem("activity_logs", JSON.stringify(logs.slice(0,50)));
 }
 
-// ================= MODALS & TUTORIAL =================
-function openModal(id) { 
-    if(id === 'tutorial-modal') { currentTutPage = 0; renderTutorial(); }
-    document.getElementById(id).style.display = "flex"; 
+// ================= MODALS =================
+function openModal(id) {
+    document.getElementById(id).style.display = "flex";
 }
 
-function closeModal(id) { 
-    document.getElementById(id || "confirm-modal").style.display = "none"; 
+function closeModal(id) {
+    document.getElementById(id || "confirm-modal").style.display = "none";
     pendingId = null;
 }
 
-function renderTutorial() {
-    const data = tutorialData[currentTutPage];
-    const imgEl = document.getElementById("tut-image-display");
-    document.getElementById("tut-title-text").innerText = data.title;
-    document.getElementById("tut-content-area").innerHTML = data.content;
-    document.getElementById("tut-page-indicator").innerText = `${currentTutPage + 1}/${tutorialData.length}`;
-    imgEl.src = data.img || "";
-    imgEl.style.display = data.img ? "block" : "none";
-    document.getElementById("btn-prev").disabled = (currentTutPage === 0);
-    document.getElementById("btn-next").innerText = (currentTutPage === tutorialData.length - 1) ? "Finish" : "Next";
-}
-
-function changeTutorialPage(dir) {
-    if (dir === 1 && currentTutPage === tutorialData.length - 1) return closeModal('tutorial-modal');
-    currentTutPage = Math.max(0, Math.min(tutorialData.length - 1, currentTutPage + dir));
-    renderTutorial();
-}
-
-setInterval(() => {
+setInterval(()=>{
     const c = document.getElementById("clock");
     if(c) c.innerText = new Date().toLocaleTimeString();
-}, 1000);
+},1000);
