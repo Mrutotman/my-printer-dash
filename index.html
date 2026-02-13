@@ -4,26 +4,26 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Smart Mezza Control</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <!-- LOGIN OVERLAY -->
   <div id="login-overlay">
     <div class="login-box">
       <h2>SYSTEM LOGIN</h2>
-      <input type="text" id="mqtt-user" class="input-field" placeholder="Username">
-      <input type="password" id="mqtt-pass" class="input-field" placeholder="Password">
-      <hr style="border:0; border-top:1px solid #444; margin:15px 0;">
+      <input type="text" id="mqtt-user" class="input-field" placeholder="HiveMQ Username">
+      <input type="password" id="mqtt-pass" class="input-field" placeholder="HiveMQ Password">
+      <hr style="border: 0; border-top: 1px solid #444; margin: 15px 0;">
       <input type="text" id="device-name" class="input-field" placeholder="Device Name (e.g. Red's Phone)">
-      <input type="text" id="server-url" class="input-field" placeholder="Cloudflare URL (https://xxxx.trycloudflare.com)">
+      <div style="font-size:12px; text-align:left; margin-top:5px;">
+        <input type="checkbox" id="remember-me"> Remember Me
+      </div>
       <button class="action-btn" onclick="connectSystem()">CONNECT</button>
     </div>
   </div>
 
-  <!-- DASHBOARD -->
   <div id="dashboard" style="display:none;">
-
     <header class="header">
       <strong>SMART MEZZA CONTROL</strong>
       <div style="font-size:11px;">
@@ -33,10 +33,7 @@
     </header>
 
     <div class="container">
-
-      <!-- LEFT PANEL -->
       <div class="sidebar">
-
         <div class="card">
           <h3>MASTER POWER (ID: 9)</h3>
           <div style="text-align:center; margin-bottom:10px;">
@@ -49,26 +46,20 @@
           <h3>CONTROL PANEL</h3>
           <div class="grid-2" id="relay-grid"></div>
         </div>
-
       </div>
 
-      <!-- MAIN CONTENT -->
       <div class="main-content">
-
-        <!-- CAMERA -->
         <div class="card">
-          <h3>LIVE FEED</h3>
+          <h3>LIVE FEED (Auto-Synced)</h3>
           <div class="camera-box">
-            <img id="cam-stream" src="" style="display:none;" alt="Live Feed"
-              onload="this.style.display='block'; document.getElementById('cam-msg').style.display='none';">
-            <div id="cam-msg" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#555;">
-              <span style="font-size:16px; font-weight:bold;">WAITING FOR LINK...</span>
-              <span style="font-size:10px;">Click ⚙️ to set Cloudflare URL</span>
+            <img id="cam-stream" src="" alt="Live Feed" onload="this.style.display='block'; document.getElementById('cam-msg').style.display='none';">
+            <div id="cam-msg" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#555; z-index:5;">
+                <span id="cam-status-text" style="font-size:16px; font-weight:bold;">WAITING FOR LINK...</span>
+                <span style="font-size:10px;">Click ⚙️ to set Cloudflare Link</span>
             </div>
           </div>
         </div>
 
-        <!-- POWER MONITOR -->
         <div class="card">
           <h3>POWER MONITOR</h3>
           <div class="pzem-grid">
@@ -79,71 +70,73 @@
           </div>
         </div>
 
-        <!-- ACTIVITY LOG -->
         <div class="card" style="flex:1;">
           <h3>ACTIVITY LOG</h3>
           <div class="log-list">
             <table class="log-table">
               <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Time</th>
-                  <th>By</th>
-                  <th>Action</th>
-                  <th>Target</th>
-                </tr>
+                <tr><th>Date</th><th>Time</th><th>By</th><th>Action</th><th>Target</th></tr>
               </thead>
               <tbody id="log-body"></tbody>
             </table>
           </div>
         </div>
-
       </div>
     </div>
 
-    <!-- SETTINGS BUTTON -->
     <button id="config-btn" onclick="openModal('config-modal')">⚙️</button>
     <button id="help-btn" onclick="openModal('tutorial-modal')">?</button>
 
-    <!-- FOOTER -->
     <footer>
       <span id="clock">--:--:--</span>
       <span>Temp: <b id="val-temp">--</b>°C</span>
       <span>Humi: <b id="val-humi">--</b>%</span>
     </footer>
-
   </div>
-
-  <!-- CONFIG MODAL -->
+  
   <div id="config-modal" class="modal-overlay">
     <div class="modal-box">
-      <h3>⚙️ CAMERA CONFIG</h3>
-      <input type="text" id="stream-input" class="input-field"
-        placeholder="https://your-tunnel.trycloudflare.com">
-      <div style="display:flex; gap:10px; margin-top:15px;">
-        <button class="action-btn" onclick="saveConfig()">SAVE</button>
-        <button class="action-btn" style="background:#555;" onclick="closeModal('config-modal')">CANCEL</button>
+      <h3>⚙️ SYSTEM CONFIG</h3>
+      <p style="font-size: 12px; color: #666;">Enter the Cloudflare Tunnel URL.</p>
+      <input type="text" id="stream-input" class="input-field" placeholder="https://your-tunnel.trycloudflare.com" style="color: black; background: #eee;">
+      <div style="display: flex; gap: 10px; margin-top: 15px;">
+        <button class="action-btn" onclick="saveConfig()">SAVE LINK</button>
+        <button class="action-btn" style="background: #555;" onclick="closeModal('config-modal')">CANCEL</button>
+      </div>
+    </div>
+  </div>
+    
+  <div id="tutorial-modal" class="modal-overlay">
+    <div class="modal-box modal-wide">
+      <div class="tut-header">
+         <span id="tut-title-text">MANUAL</span>
+         <span id="tut-page-indicator" style="font-size:10px; background:#eee; padding:2px 6px; border-radius:4px;">1/5</span>
+      </div>
+      <div class="tut-content-scroll">
+        <img id="tut-image-display" src="" class="tut-img" style="display:none;">
+        <div id="tut-content-area" class="tut-section"></div>
+      </div>
+      <div class="tut-nav">
+         <button class="tut-btn" id="btn-prev" onclick="changeTutorialPage(-1)">Previous</button>
+         <button class="tut-btn" onclick="closeModal('tutorial-modal')">Close</button>
+         <button class="tut-btn primary" id="btn-next" onclick="changeTutorialPage(1)">Next</button>
       </div>
     </div>
   </div>
 
-  <!-- CONFIRM MODAL -->
   <div id="confirm-modal" class="modal-overlay">
     <div class="modal-box">
-      <h3 style="color:red;">⚠️ CONFIRM ACTION</h3>
-      <p id="confirm-msg">Type CONFIRM to proceed.</p>
-      <input type="text" id="confirm-input" class="input-field"
-        style="text-align:center;" placeholder="Type CONFIRM">
+      <h3 style="color:var(--danger)">⚠️ CONFIRM ACTION</h3>
+      <p id="confirm-msg">Type CONFIRM to turn off.</p>
+      <input type="text" id="confirm-input" class="input-field" style="text-align:center; color:black; background:#eee;" placeholder="Type CONFIRM">
       <div style="display:flex; gap:10px; margin-top:15px;">
-        <button class="btn btn-off" onclick="executeOff()">CONFIRM</button>
-        <button class="btn btn-on" onclick="closeModal('confirm-modal')">CANCEL</button>
+        <button class="btn btn-off" onclick="executeOff()">CONFIRM OFF</button>
+        <button class="btn btn-on" style="background:#ddd; color:#333; border:1px solid #ccc;" onclick="closeModal('confirm-modal')">CANCEL</button>
       </div>
     </div>
   </div>
 
-  <!-- SCRIPTS -->
   <script src="config.js"></script>
   <script src="app.js"></script>
-
 </body>
 </html>
