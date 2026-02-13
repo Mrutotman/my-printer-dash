@@ -1,5 +1,5 @@
 // ================= CONFIGURATION =================
-const DEVICE_URL = "https://yourdomain.com";
+const DEVICE_URL = "";
 const LABELS = ["Printer 1", "Printer 2", "Printer 3", "Printer 4", "Light Bulb 1", "Light Bulb 2", "Free 1", "Free 2"];
 
 
